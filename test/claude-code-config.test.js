@@ -173,17 +173,21 @@ test('createRuntimeConfigs supports item-level apikey configs', () => {
   assert.equal(runtimeConfigs[1].apiKey, 'sk-2');
 });
 
-test('parseOpenAiConfigFile rejects deprecated top-level type', () => {
-  assert.throws(() => {
-    parseOpenAiConfigFile(JSON.stringify({
-      type: 'api_key',
-      configs: [],
-    }));
-  }, err => {
-    assert.equal(err instanceof Error, true);
-    assert.match(err.message, /顶层 type 已废弃/);
-    return true;
-  });
+test('parseOpenAiConfigFile ignores deprecated top-level type', () => {
+  const parsed = parseOpenAiConfigFile(JSON.stringify({
+    type: 'api_key',
+    configs: [
+      {
+        access_token: 'token',
+        account_id: 'account',
+      },
+    ],
+  }));
+  const runtimeConfigs = createRuntimeConfigs(parsed);
+
+  assert.equal(parsed.type, 'api_key');
+  assert.equal(runtimeConfigs[0].type, 'token');
+  assert.equal(runtimeConfigs[0].access_token, 'token');
 });
 
 test('createRuntimeConfigs rejects apikey configs without item-level base_url', () => {

@@ -66,10 +66,6 @@ function parseOpenAiConfigFile(raw) {
         throw new Error('配置文件必须是包含 configs 的对象');
     }
 
-    if (Object.prototype.hasOwnProperty.call(parsed, 'type')) {
-        throw new Error('配置文件顶层 type 已废弃，请在 configs[] 配置项中设置 type');
-    }
-
     if (!Array.isArray(parsed.configs)) {
         throw new Error('配置文件 configs 必须是数组');
     }
