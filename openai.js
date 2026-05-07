@@ -313,7 +313,11 @@ function canAttemptResponsesFailover(config, requestUrl, attempt) {
 }
 
 function isResponsesFailoverInspectionCandidate(statusCode, headers) {
-    return Number(statusCode) === 429 || isInspectableResponsesEventStream(headers);
+    const normalizedStatusCode = Number(statusCode);
+    return normalizedStatusCode === 429 ||
+        normalizedStatusCode === 401 ||
+        normalizedStatusCode === 403 ||
+        isInspectableResponsesEventStream(headers);
 }
 
 function writeBufferedUpstreamResponse(res, statusCode, rawHeaders, bodyBuffer) {
@@ -515,9 +519,9 @@ async function inspectResponsesUpstreamForFailover(response, statusCode, rawHead
 function createClaudeMessagesRequestHandler() {
     return createClaudeMessagesHandler({
         getConfig: () => {
-            const config = accountManager.getActiveConfig(config => config.type === 'token');
+            const config = accountManager.ensureActiveConfig('claude_request');
 
-            if (!config) {
+            if (!config || config.type !== 'token') {
                 throw new Error(`当前没有可用 token 配置，请先访问 ${buildAdminPath()} 添加 Codex token 账号`);
             }
 
@@ -543,7 +547,14 @@ function createClaudeMessagesRequestHandler() {
         upstreamModel: process.env.CLAUDE_PROXY_MODEL || claudeCodeConfig.model,
         reasoningEffort: process.env.CLAUDE_PROXY_REASONING_EFFORT || claudeCodeConfig.reasoningEffort,
         clientVersion: process.env.CODEX_CLIENT_VERSION || '0.0.1',
-        upstreamRequestTimeoutMs: UPSTREAM_REQUEST_TIMEOUT_MS
+        upstreamRequestTimeoutMs: UPSTREAM_REQUEST_TIMEOUT_MS,
+        handleRetryableUpstreamError: (config, classification) => {
+            warn(`claude responses 自动切号: #${config.index + 1} ${config.description} (${classification.retrySource}:${classification.retryKey})`);
+            return accountManager.markConfigUnavailable(config, classification.reason, {
+                lastError: `${classification.retrySource}:${classification.retryKey}`,
+                switchReason: 'claude_responses_failover',
+            });
+        }
     });
 }
 
@@ -1487,6 +1498,7 @@ module.exports = {
     LOCAL_ONLY_AUTH_HEADERS,
     LOCAL_ONLY_HEADER_PREFIXES,
     getGatewayStatusCode,
+    isResponsesFailoverInspectionCandidate,
     refreshConfigAdminResponse,
     startServer
 };

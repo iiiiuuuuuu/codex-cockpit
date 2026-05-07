@@ -144,6 +144,21 @@ function createAccountManager(options) {
    * 将额度接口返回转换为统一的运行时状态。
    */
   function evaluateQuotaPayload(payload) {
+    const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim().toLowerCase() : '';
+    if (detail === 'unauthorized') {
+      return {
+        available: false,
+        reason: 'missing_credentials',
+        remainingPercent: null,
+        primaryRemainingPercent: null,
+        primaryResetAt: null,
+        primaryResetAfterSeconds: null,
+        secondaryRemainingPercent: null,
+        secondaryResetAt: null,
+        secondaryResetAfterSeconds: null,
+      };
+    }
+
     const rateLimit = payload && typeof payload === 'object' ? payload.rate_limit || {} : {};
     const primaryRemainingPercent = computeRemainingPercent(rateLimit.primary_window);
     const secondaryRemainingPercent = computeRemainingPercent(rateLimit.secondary_window);
@@ -355,11 +370,18 @@ function createAccountManager(options) {
         timeoutMs: quotaCheckTimeoutMs,
         maxRedirects: 5,
       }));
+      const payload = JSON.parse(result.bodyText);
       if (result.statusCode < 200 || result.statusCode >= 300) {
+        const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim().toLowerCase() : '';
+        if (detail === 'unauthorized') {
+          applyQuotaPayload(config, payload, { allowSwitch });
+          return config.runtime;
+        }
+
         throw new Error(`quota check status ${result.statusCode}`);
       }
 
-      applyQuotaPayload(config, JSON.parse(result.bodyText), { allowSwitch });
+      applyQuotaPayload(config, payload, { allowSwitch });
     } catch (err) {
       config.runtime.available = false;
       config.runtime.reason = 'quota_check_failed';

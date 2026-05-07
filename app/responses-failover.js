@@ -8,6 +8,7 @@ const RETRYABLE_HTTP_ERROR_TYPES = new Map([
 
 const RETRYABLE_STREAM_ERROR_CODES = new Map([
   ['insufficient_quota', { reason: 'responses_insufficient_quota' }],
+  ['usage_limit_reached', { reason: 'responses_usage_limit_reached' }],
   ['usage_not_included', { reason: 'responses_usage_not_included' }],
 ]);
 
@@ -34,11 +35,25 @@ function parseJsonObject(text) {
 }
 
 function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
-  if (Number(statusCode) !== 429) {
+  const normalizedStatusCode = Number(statusCode);
+  if (normalizedStatusCode !== 429 && normalizedStatusCode !== 401 && normalizedStatusCode !== 403) {
     return null;
   }
 
   const payload = parseJsonObject(bodyText);
+  const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim().toLowerCase() : '';
+  if ((normalizedStatusCode === 401 || normalizedStatusCode === 403) && detail === 'unauthorized') {
+    return {
+      reason: 'missing_credentials',
+      retryKey: 'unauthorized',
+      retrySource: 'http',
+    };
+  }
+
+  if (normalizedStatusCode !== 429) {
+    return null;
+  }
+
   const errorType = payload && payload.error && typeof payload.error.type === 'string'
     ? payload.error.type
     : '';
@@ -52,6 +67,27 @@ function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
     reason: metadata.reason,
     retryKey: errorType,
     retrySource: 'http',
+  };
+}
+
+function classifyRetryableResponsesStreamPayload(payload) {
+  const eventType = typeof payload?.type === 'string' ? payload.type : '';
+  const errorCode = payload && payload.response && payload.response.error && typeof payload.response.error.code === 'string'
+    ? payload.response.error.code
+    : '';
+  const metadata = eventType === 'response.failed'
+    ? RETRYABLE_STREAM_ERROR_CODES.get(errorCode)
+    : null;
+
+  if (!metadata) {
+    return null;
+  }
+
+  return {
+    action: 'retry',
+    reason: metadata.reason,
+    retryKey: errorCode,
+    retrySource: 'stream',
   };
 }
 
@@ -193,20 +229,10 @@ function createResponsesEventStreamInspector(options = {}) {
     }
 
     const eventType = typeof payload.type === 'string' ? payload.type : '';
-    const errorCode = payload && payload.response && payload.response.error && typeof payload.response.error.code === 'string'
-      ? payload.response.error.code
-      : '';
-    const metadata = eventType === 'response.failed'
-      ? RETRYABLE_STREAM_ERROR_CODES.get(errorCode)
-      : null;
+    const classification = classifyRetryableResponsesStreamPayload(payload);
 
-    if (metadata) {
-      return {
-        action: 'retry',
-        reason: metadata.reason,
-        retryKey: errorCode,
-        retrySource: 'stream',
-      };
+    if (classification) {
+      return classification;
     }
 
     if (IGNORABLE_PRELUDE_EVENT_TYPES.has(eventType)) {
@@ -238,6 +264,7 @@ function createResponsesEventStreamInspector(options = {}) {
 module.exports = {
   applyResponsesFailoverRequestHeaders,
   classifyRetryableResponsesHttpError,
+  classifyRetryableResponsesStreamPayload,
   createResponsesEventStreamInspector,
   drainAbandonedResponse,
   getHeaderValue,

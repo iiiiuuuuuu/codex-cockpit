@@ -45,6 +45,21 @@ test('classifyRetryableResponsesHttpError detects usage_not_included', () => {
   });
 });
 
+test('classifyRetryableResponsesHttpError detects unauthorized detail payloads', () => {
+  const result = classifyRetryableResponsesHttpError({
+    statusCode: 401,
+    bodyText: JSON.stringify({
+      detail: 'Unauthorized',
+    }),
+  });
+
+  assert.deepEqual(result, {
+    reason: 'missing_credentials',
+    retryKey: 'unauthorized',
+    retrySource: 'http',
+  });
+});
+
 test('classifyRetryableResponsesHttpError ignores non-retryable payloads', () => {
   const result = classifyRetryableResponsesHttpError({
     statusCode: 503,
@@ -91,6 +106,27 @@ test('createResponsesEventStreamInspector ignores prelude events and retries usa
     action: 'retry',
     reason: 'responses_usage_not_included',
     retryKey: 'usage_not_included',
+    retrySource: 'stream',
+  });
+});
+
+test('createResponsesEventStreamInspector retries usage_limit_reached stream failures', () => {
+  const inspector = createResponsesEventStreamInspector();
+
+  const firstResult = inspector.push(Buffer.from(
+    'data: {"type":"response.created","response":{"id":"resp_123"}}\n\n',
+    'utf8',
+  ));
+  const secondResult = inspector.push(Buffer.from(
+    'data: {"type":"response.failed","response":{"error":{"code":"usage_limit_reached","message":"You\\u0027ve hit your usage limit."}}}\n\n',
+    'utf8',
+  ));
+
+  assert.deepEqual(firstResult, { action: 'pending' });
+  assert.deepEqual(secondResult, {
+    action: 'retry',
+    reason: 'responses_usage_limit_reached',
+    retryKey: 'usage_limit_reached',
     retrySource: 'stream',
   });
 });
