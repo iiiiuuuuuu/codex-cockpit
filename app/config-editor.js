@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const {
     parseOpenAiConfigFile,
     createRuntimeConfigs,
+    getConfigItemType,
 } = require('./openai-config');
 
 class ConfigEditorError extends Error {}
@@ -60,12 +61,12 @@ function normalizeResponsesModelAliases(value) {
 }
 
 function getEditableFields(type) {
-    if (type === 'api_key') {
-        return ['api_key', 'base_url', 'description'];
+    if (type === 'apikey') {
+        return ['type', 'apikey', 'base_url', 'description'];
     }
 
     if (type === 'token') {
-        return ['access_token', 'account_id', 'description'];
+        return ['type', 'access_token', 'account_id', 'description'];
     }
 
     throw new ConfigEditorError(`不支持的配置类型: ${type}`);
@@ -102,26 +103,44 @@ function readParsedConfigFile(configFile) {
     }
 }
 
-function normalizeConfigItem(type, item, existingItem = {}) {
+function normalizeConfigItem(item, existingItem = {}) {
     assertPlainObject(item, '配置项必须是对象');
 
     const nextItem = {
         ...(existingItem && typeof existingItem === 'object' && !Array.isArray(existingItem) ? existingItem : {}),
         ...item,
     };
+    const type = getConfigItemType(nextItem);
 
     for (const field of getEditableFields(type)) {
         nextItem[field] = normalizeString(item[field]);
     }
 
+    if (type === 'token' && !nextItem.type) {
+        delete nextItem.type;
+    }
+
+    if (type === 'apikey') {
+        nextItem.type = 'apikey';
+        nextItem.base_url = nextItem.base_url.replace(/\/+$/, '');
+    }
+
     return nextItem;
 }
 
-function buildImportedConfigItem(type, item) {
+function buildImportedConfigItem(typeOrItem, maybeItem) {
+    const item = typeof typeOrItem === 'string' ? maybeItem : typeOrItem;
     assertPlainObject(item, '配置项 JSON 必须是对象');
 
+    const type = typeof typeOrItem === 'string'
+        ? typeOrItem
+        : getConfigItemType(item);
+
     if (type !== 'token') {
-        return normalizeConfigItem(type, item);
+        return normalizeConfigItem({
+            ...item,
+            type
+        });
     }
 
     const explicitAccessToken = normalizeString(item.access_token);
@@ -156,14 +175,14 @@ function getConfigIndex(index, parsed) {
 
 function addConfigItem(parsed, item) {
     const nextParsed = cloneParsedConfig(parsed);
-    nextParsed.configs.push(normalizeConfigItem(nextParsed.type, item));
+    nextParsed.configs.push(normalizeConfigItem(item));
     return validateParsedConfig(nextParsed);
 }
 
 function updateConfigItem(parsed, index, item) {
     const nextParsed = cloneParsedConfig(parsed);
     const targetIndex = getConfigIndex(index, nextParsed);
-    nextParsed.configs[targetIndex] = normalizeConfigItem(nextParsed.type, item, nextParsed.configs[targetIndex]);
+    nextParsed.configs[targetIndex] = normalizeConfigItem(item, nextParsed.configs[targetIndex]);
     return validateParsedConfig(nextParsed);
 }
 

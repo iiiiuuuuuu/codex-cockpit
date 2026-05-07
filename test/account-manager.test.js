@@ -20,7 +20,7 @@ function createRuntime(overrides = {}) {
   };
 }
 
-function createConfig(index, runtimeOverrides = {}) {
+function createConfig(index, runtimeOverrides = {}, configOverrides = {}) {
   return {
     type: 'token',
     index,
@@ -30,6 +30,7 @@ function createConfig(index, runtimeOverrides = {}) {
     access_token: `token-${index}`,
     account_id: `account-${index}`,
     runtime: createRuntime(runtimeOverrides),
+    ...configOverrides,
   };
 }
 
@@ -397,6 +398,14 @@ test('refreshQuotas logs the active account summary after a poll', async () => {
         secondary_window: { used_percent: 40, reset_at: 1713360000 },
       },
     },
+    {
+      rate_limit: {
+        allowed: true,
+        limit_reached: false,
+        primary_window: { used_percent: 30, reset_at: 1713351000 },
+        secondary_window: { used_percent: 45, reset_at: 1713361000 },
+      },
+    },
   ]);
   const { manager, logs } = createManager(configs, {
     requestBufferedFn: quotaResponses.requestBuffered,
@@ -404,8 +413,8 @@ test('refreshQuotas logs the active account summary after a poll', async () => {
 
   await manager.refreshQuotas('poll');
 
-  assert.equal(quotaResponses.getCallCount(), 1);
-  assert.equal(configs[1].runtime.lastCheckedAt, null);
+  assert.equal(quotaResponses.getCallCount(), 2);
+  assert.equal(configs[1].runtime.lastCheckedAt, 1713337200000);
   assert.equal(quotaResponses.getCalls()[0].timeoutMs, 10 * 1000);
   assert.match(logs[0], /轮询额度: #1 account-1 \| 可用=是/);
 });
@@ -532,7 +541,7 @@ test('refreshQuotas still checks all accounts during startup', async () => {
   assert.equal(configs[1].runtime.lastCheckedAt, 1713337200000);
 });
 
-test('refreshQuotas only checks the active account when it remains available', async () => {
+test('refreshQuotas checks every token account during poll', async () => {
   const configs = [
     createConfig(0, { available: true, reason: 'ok' }),
     createConfig(1, { available: false, reason: 'quota_check_failed' }),
@@ -547,6 +556,22 @@ test('refreshQuotas only checks the active account when it remains available', a
         secondary_window: { used_percent: 40, reset_at: 1713360000 },
       },
     },
+    {
+      rate_limit: {
+        allowed: true,
+        limit_reached: false,
+        primary_window: { used_percent: 35, reset_at: 1713351000 },
+        secondary_window: { used_percent: 45, reset_at: 1713361000 },
+      },
+    },
+    {
+      rate_limit: {
+        allowed: false,
+        limit_reached: false,
+        primary_window: { used_percent: 50, reset_at: 1713352000 },
+        secondary_window: { used_percent: 55, reset_at: 1713362000 },
+      },
+    },
   ]);
   const { manager, warnings, logs } = createManager(configs, {
     requestBufferedFn: quotaResponses.requestBuffered,
@@ -554,22 +579,71 @@ test('refreshQuotas only checks the active account when it remains available', a
 
   await manager.refreshQuotas('poll');
 
-  assert.equal(quotaResponses.getCallCount(), 1);
+  assert.equal(quotaResponses.getCallCount(), 3);
   assert.deepEqual(
     quotaResponses.getCalls().map(call => call.headers['chatgpt-account-id']),
-    ['account-0'],
+    ['account-0', 'account-1', 'account-2'],
   );
-  assert.equal(configs[1].runtime.available, false);
-  assert.equal(configs[1].runtime.reason, 'quota_check_failed');
-  assert.equal(configs[1].runtime.lastCheckedAt, null);
+  assert.equal(configs[1].runtime.available, true);
+  assert.equal(configs[1].runtime.reason, 'ok');
+  assert.equal(configs[1].runtime.lastCheckedAt, 1713337200000);
   assert.equal(configs[2].runtime.available, false);
-  assert.equal(configs[2].runtime.reason, 'quota_check_failed');
-  assert.equal(configs[2].runtime.lastCheckedAt, null);
-  assert.equal(warnings.length, 0);
+  assert.equal(configs[2].runtime.reason, 'rate_limit_not_allowed');
+  assert.equal(configs[2].runtime.lastCheckedAt, 1713337200000);
   assert.match(logs[0], /轮询额度: #1 account-1 \| 可用=是/);
 });
 
-test('refreshQuotas checks candidates in order and stops at the first recovered account', async () => {
+test('ensureActiveConfig prefers an available token config over an available apikey config', () => {
+  const configs = [
+    createConfig(0, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-1',
+    }),
+    createConfig(1),
+  ];
+  const { manager } = createManager(configs, {
+    initialActiveConfigIndex: 0,
+  });
+
+  const selected = manager.ensureActiveConfig('select');
+
+  assert.equal(selected.index, 1);
+});
+
+test('refreshQuotas switches back from apikey fallback when a token account is available', async () => {
+  const configs = [
+    createConfig(0, { available: false, reason: 'quota_check_failed' }),
+    createConfig(1, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-1',
+    }),
+  ];
+  const quotaResponses = createBufferedRequestRecorder([
+    {
+      rate_limit: {
+        allowed: true,
+        limit_reached: false,
+        primary_window: { used_percent: 10, reset_at: 1713350000 },
+        secondary_window: { used_percent: 20, reset_at: 1713360000 },
+      },
+    },
+  ]);
+  const { manager } = createManager(configs, {
+    initialActiveConfigIndex: 1,
+    requestBufferedFn: quotaResponses.requestBuffered,
+  });
+
+  await manager.refreshQuotas('poll');
+
+  assert.equal(quotaResponses.getCallCount(), 1);
+  assert.equal(manager.getActiveConfig().index, 0);
+});
+
+test('refreshQuotas checks all token accounts and selects the first recovered account', async () => {
   const configs = [
     createConfig(0, { available: true, reason: 'ok' }),
     createConfig(1, { available: false, reason: 'quota_check_failed' }),
@@ -607,10 +681,10 @@ test('refreshQuotas checks candidates in order and stops at the first recovered 
 
   await manager.refreshQuotas('poll');
 
-  assert.equal(quotaResponses.getCallCount(), 2);
+  assert.equal(quotaResponses.getCallCount(), 3);
   assert.deepEqual(
     quotaResponses.getCalls().map(call => call.headers['chatgpt-account-id']),
-    ['account-0', 'account-1'],
+    ['account-0', 'account-1', 'account-2'],
   );
   assert.equal(manager.getActiveConfig(), configs[1]);
   assert.equal(configs[0].runtime.available, false);
@@ -618,18 +692,24 @@ test('refreshQuotas checks candidates in order and stops at the first recovered 
   assert.equal(configs[1].runtime.available, true);
   assert.equal(configs[1].runtime.reason, 'ok');
   assert.equal(configs[2].runtime.available, false);
-  assert.equal(configs[2].runtime.reason, 'quota_check_failed');
+  assert.equal(configs[2].runtime.reason, 'rate_limit_not_allowed');
   assert.equal(warnings.some(line => /账号不可用: #1 account-1 \(remaining_below_3%\)/.test(line)), true);
   assert.equal(warnings.some(line => /账号恢复可用: #2 account-2 \(remaining=80%\)/.test(line)), true);
   assert.equal(warnings.some(line => /账号切换: #1 account-1 -> #2 account-2 \(poll\)/.test(line)), true);
   assert.match(logs[0], /轮询额度: #2 account-2 \| 可用=是/);
 });
 
-test('refreshQuotas checks all accounts when no available account can be found after the current one fails', async () => {
+test('refreshQuotas keeps using apikey fallback when all token accounts are unavailable', async () => {
   const configs = [
     createConfig(0, { available: true, reason: 'ok' }),
     createConfig(1, { available: false, reason: 'quota_check_failed' }),
     createConfig(2, { available: false, reason: 'quota_check_failed' }),
+    createConfig(3, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-3',
+    }),
   ];
   const quotaResponses = createBufferedRequestRecorder([
     {
@@ -658,6 +738,7 @@ test('refreshQuotas checks all accounts when no available account can be found a
     },
   ]);
   const { manager, warnings, logs } = createManager(configs, {
+    initialActiveConfigIndex: 3,
     requestBufferedFn: quotaResponses.requestBuffered,
   });
 
@@ -668,13 +749,14 @@ test('refreshQuotas checks all accounts when no available account can be found a
     quotaResponses.getCalls().map(call => call.headers['chatgpt-account-id']),
     ['account-0', 'account-1', 'account-2'],
   );
-  assert.equal(manager.getActiveConfig(), configs[0]);
+  assert.equal(manager.getActiveConfig(), configs[3]);
   assert.equal(configs[0].runtime.available, false);
   assert.equal(configs[1].runtime.available, false);
   assert.equal(configs[2].runtime.available, false);
+  assert.equal(configs[3].runtime.available, true);
   assert.equal(warnings.some(line => /账号不可用: #1 account-1 \(remaining_below_3%\)/.test(line)), true);
-  assert.equal(warnings.some(line => /没有可用账号，继续使用当前账号 #1 account-1 \(poll\)/.test(line)), true);
-  assert.match(logs[0], /轮询额度: #1 account-1 \| 可用=否/);
+  assert.equal(warnings.some(line => /没有可用账号/.test(line)), false);
+  assert.match(logs[0], /轮询额度: #4 account-4 \| 可用=是/);
 });
 
 test('refreshQuotas releases the monitor lock after a quota timeout', async () => {

@@ -136,6 +136,85 @@
     return typeof apikeys[0] === 'string' ? apikeys[0] : '';
   }
 
+  function maskSecret(value) {
+    const text = String(value || '').trim();
+    if (!text) {
+      return '-';
+    }
+
+    if (text.length <= 8) {
+      return '***';
+    }
+
+    return `${text.slice(0, 3)}-...${text.slice(-4)}`;
+  }
+
+  function getConfigGuideContent(snapshot) {
+    return {
+      steps: [
+        {
+          title: '登录 ChatGPT',
+          description: '先登录 ChatGPT，确保账号已经在线。',
+          actionText: '打开 ChatGPT',
+          actionHref: 'https://chatgpt.com/',
+        },
+        {
+          title: '获取 AuthSession 或 API Key',
+          description: 'Codex token 可粘贴 AuthSession JSON；第三方 API 可粘贴 apikey 配置项 JSON。',
+          actionText: '打开 AuthSession 页面',
+          actionHref: 'https://chatgpt.com/api/auth/session',
+        },
+      ],
+      rawJsonPlaceholder: [
+        JSON.stringify({
+          user: {
+            email: 'user@example.com',
+          },
+          account: {
+            id: 'account-id',
+          },
+          accessToken: '...',
+        }, null, 2),
+        JSON.stringify({
+          type: 'apikey',
+          base_url: 'https://api.example.com/v1',
+          apikey: 'sk-xxx',
+          description: 'third-party provider',
+        }, null, 2),
+      ].join('\n\n// 或\n\n'),
+    };
+  }
+
+  function hasApiKeyConfig(snapshot) {
+    const configs = Array.isArray(snapshot && snapshot.configs) ? snapshot.configs : [];
+    return configs.some(item => {
+      const configItem = item && item.item ? item.item : item;
+      return configItem && configItem.type === 'apikey';
+    });
+  }
+
+  function getConfigIdentityColumnLabel(snapshot) {
+    return hasApiKeyConfig(snapshot) ? '上游配置' : 'account_id';
+  }
+
+  function getConfigIdentityValue(snapshot, item) {
+    const configItem = item && item.item ? item.item : item;
+    const itemType = configItem && configItem.type === 'apikey' ? 'apikey' : 'token';
+
+    if (itemType === 'apikey') {
+      const baseUrl = typeof configItem.base_url === 'string' && configItem.base_url.trim()
+        ? configItem.base_url.trim()
+        : '-';
+      const apikey = configItem && configItem.apikey;
+
+      return `${baseUrl} (${maskSecret(apikey)})`;
+    }
+
+    const value = configItem && configItem.account_id;
+
+    return typeof value === 'string' && value.trim() ? value.trim() : '-';
+  }
+
   function buildHelloTestRequest(snapshot) {
     const configuredModel = snapshot && snapshot.claude_code && typeof snapshot.claude_code.model === 'string'
       ? snapshot.claude_code.model.trim()
@@ -232,6 +311,9 @@
     buildJsonRequestOptions,
     parseResponsesApiResponse,
     getPreferredApiKey,
+    getConfigGuideContent,
+    getConfigIdentityColumnLabel,
+    getConfigIdentityValue,
     buildHelloTestRequest,
     formatResponsesModelAliasesInput,
     parseResponsesModelAliasesInput,

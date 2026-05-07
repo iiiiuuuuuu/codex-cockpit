@@ -107,11 +107,28 @@ const ACCESS_LOG_ENABLED = (
 function buildLoadedConfig(parsed) {
     return {
         parsed,
-        type: parsed.type,
         configs: createRuntimeConfigs(parsed),
         claudeCode: resolveClaudeCodeOptions(parsed),
         responses: resolveResponsesOptions(parsed)
     };
+}
+
+function getConfigPoolType(configs) {
+    const types = new Set((configs || []).map(config => config.type));
+
+    if (types.size === 0) {
+        return 'empty';
+    }
+
+    if (types.size === 1) {
+        return types.values().next().value;
+    }
+
+    return 'mixed';
+}
+
+function hasQuotaMonitoredConfigs(configs) {
+    return (configs || []).some(config => shouldUseQuotaMonitoring(config.type));
 }
 
 function ensureSecuritySettings(parsed) {
@@ -152,11 +169,9 @@ let currentParsedConfig = null;
 let configType = null;
 let apiConfigs = [];
 let claudeCodeConfig = resolveClaudeCodeOptions({
-    type: 'token',
     configs: [{}]
 });
 let responsesConfig = resolveResponsesOptions({
-    type: 'token',
     configs: [{}]
 });
 let accountManager = null;
@@ -500,10 +515,10 @@ async function inspectResponsesUpstreamForFailover(response, statusCode, rawHead
 function createClaudeMessagesRequestHandler() {
     return createClaudeMessagesHandler({
         getConfig: () => {
-            const config = accountManager.getActiveConfig();
+            const config = accountManager.getActiveConfig(config => config.type === 'token');
 
             if (!config) {
-                throw new Error(`当前没有可用配置，请先访问 ${buildAdminPath()} 添加账号`);
+                throw new Error(`当前没有可用 token 配置，请先访问 ${buildAdminPath()} 添加 Codex token 账号`);
             }
 
             return config;
@@ -534,8 +549,8 @@ function createClaudeMessagesRequestHandler() {
 
 function applyLoadedConfig(loadedConfig) {
     currentParsedConfig = loadedConfig.parsed;
-    configType = loadedConfig.type;
     apiConfigs = loadedConfig.configs;
+    configType = getConfigPoolType(apiConfigs);
     claudeCodeConfig = loadedConfig.claudeCode;
     responsesConfig = loadedConfig.responses;
 
@@ -579,7 +594,7 @@ function hydrateLoadedConfig(loadedConfig, options = {}) {
 async function reloadRuntime(loadedConfig, reason, options = {}) {
     applyLoadedConfig(hydrateLoadedConfig(loadedConfig, options));
 
-    if (shouldUseQuotaMonitoring(configType) && !options.skipQuotaRefresh) {
+    if (hasQuotaMonitoredConfigs(apiConfigs) && !options.skipQuotaRefresh) {
         await accountManager.refreshQuotas(reason);
     }
 
@@ -651,10 +666,12 @@ function buildConfigAdminResponse() {
 
 async function refreshConfigAdminResponse(options = {}) {
     const manager = options.accountManager || accountManager;
-    const resolvedConfigType = options.configType || configType;
+    const shouldRefreshQuota = Object.prototype.hasOwnProperty.call(options, 'shouldRefreshQuota')
+        ? options.shouldRefreshQuota
+        : hasQuotaMonitoredConfigs(apiConfigs);
     const buildResponse = options.buildResponse || buildConfigAdminResponse;
 
-    if (manager && shouldUseQuotaMonitoring(resolvedConfigType)) {
+    if (manager && shouldRefreshQuota) {
         await manager.refreshQuotas('admin_refresh');
     }
 
@@ -761,7 +778,6 @@ function parseConfigItemJson(rawJson) {
 function validateConfigItemBeforeAdd(type, item) {
     try {
         return createRuntimeConfigs({
-            type,
             configs: [item],
             claude_code: {},
         })[0];
@@ -782,7 +798,7 @@ function buildIncomingUrl(req, proxyPath = '') {
 
 function rewriteProxyUrl(incomingUrl, config) {
     const parsedUrl = new URL(incomingUrl, 'http://localhost');
-    if (config.type === 'api_key') {
+    if (config.type === 'apikey') {
         return `${parsedUrl.pathname}${parsedUrl.search}`;
     }
 
@@ -1252,8 +1268,8 @@ app.post('/admin/api/configs', async (req, res) => {
     try {
         const parsed = readParsedConfigFile(CONFIG_FILE);
         const rawItem = parseConfigItemJson(req.body && req.body.raw_json);
-        const inputItem = buildImportedConfigItem(parsed.type, rawItem);
-        const validatedRuntimeConfig = await validateConfigItemBeforeAdd(parsed.type, inputItem);
+        const inputItem = buildImportedConfigItem(rawItem);
+        const validatedRuntimeConfig = await validateConfigItemBeforeAdd(null, inputItem);
         const nextParsed = addConfigItem(parsed, inputItem);
         await persistAndReloadConfig(nextParsed, 'admin_create', {
             runtimeOverrides: [validatedRuntimeConfig],
@@ -1412,15 +1428,17 @@ async function startServer() {
             log(`  - 模式: ${configType}`);
             log(`  - 账号数量: ${apiConfigs.length}`);
             log(`  - 当前账号: ${currentAccountStatus ? currentAccountStatus.label : '未配置'}`);
-            log(`  - 额度轮询: ${shouldUseQuotaMonitoring(configType) ? `每 ${QUOTA_CHECK_INTERVAL_MS / 60000} 分钟检查一次，剩余低于 ${MIN_REMAINING_PERCENT}% 自动切号` : '关闭（api_key 模式）'}`);
+            log(`  - 额度轮询: ${hasQuotaMonitoredConfigs(apiConfigs) ? `每 ${QUOTA_CHECK_INTERVAL_MS / 60000} 分钟检查所有 token 账号，剩余低于 ${MIN_REMAINING_PERCENT}% 自动切号` : '关闭（无 token 配置项）'}`);
             log(`  - 上游请求超时: ${UPSTREAM_REQUEST_TIMEOUT_MS > 0 ? `${UPSTREAM_REQUEST_TIMEOUT_MS}ms` : '关闭'}`);
-            log(`  - quota check 超时: ${shouldUseQuotaMonitoring(configType) ? `${QUOTA_CHECK_TIMEOUT_MS}ms` : '关闭（api_key 模式）'}`);
+            log(`  - quota check 超时: ${hasQuotaMonitoredConfigs(apiConfigs) ? `${QUOTA_CHECK_TIMEOUT_MS}ms` : '关闭（无 token 配置项）'}`);
             log(`  - 入口 apikey 校验: ${hasConfiguredApiKeys(currentParsedConfig) ? `开启（${getConfiguredApiKeys(currentParsedConfig).length} 个）` : '关闭（未配置 apikey）'}`);
             log(`  - 访问日志: ${ACCESS_LOG_ENABLED ? '开启' : '关闭'}${ACCESS_LOG_ENABLED ? '（--access-log）' : '（使用 --access-log 开启）'}`);
-            if (shouldUseQuotaMonitoring(configType) && apiConfigs.length > 0) {
+            if (hasQuotaMonitoredConfigs(apiConfigs) && apiConfigs.length > 0) {
                 log('  - 初始化账号额度:');
                 for (const config of apiConfigs) {
-                    log(`    ${accountManager.getAccountStatus(config).summaryLine}`);
+                    if (shouldUseQuotaMonitoring(config.type)) {
+                        log(`    ${accountManager.getAccountStatus(config).summaryLine}`);
+                    }
                 }
             }
             if (apiConfigs.length === 0) {
@@ -1428,10 +1446,9 @@ async function startServer() {
             }
             log('');
             log('路由规则:');
-            log(`  - /claude/v1/messages -> ${configType === 'token' ? '/backend-api/codex/responses (Claude compatibility)' : '当前模式不支持，需切换到 token 模式'}`);
-            log('  - /v1/responses -> /backend-api/codex/responses');
-            log('  - /v1/models -> /backend-api/codex/models');
-            log('  - /wham/* -> /backend-api/wham/*');
+            log('  - /claude/v1/messages -> token 配置项 /backend-api/codex/responses (Claude compatibility)');
+            log('  - /v1/* -> token 配置项会重写到 /backend-api/codex/*；apikey 配置项会直连对应 base_url');
+            log('  - /wham/* -> token 配置项会重写到 /backend-api/wham/*；apikey 配置项会直连对应 base_url');
         })().catch(err => {
             error('初始化账号信息失败:', err.message);
         });

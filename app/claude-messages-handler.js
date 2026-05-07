@@ -352,10 +352,10 @@ function createClaudeMessagesHandler({
             });
         }
 
-        if (config.type === 'api_key') {
+        if (config.type === 'apikey') {
             return sendJsonError(res, 400, {
                 error: 'Unsupported Mode',
-                message: '/claude/v1/messages 仅支持 token 模式，当前 api_key 模式请改用 /v1 接口或切换到 token 模式'
+                message: '/claude/v1/messages 仅支持 token 配置项，当前 apikey 配置项请改用 /v1 接口或添加 token 配置项'
             });
         }
 

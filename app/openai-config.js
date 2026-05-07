@@ -37,24 +37,52 @@ function createDefaultApiKeyRuntime() {
         secondaryRemainingPercent: null,
         secondaryResetAt: null,
         secondaryResetAfterSeconds: null,
-        reason: 'api_key',
+        reason: 'apikey',
         lastError: null
     };
+}
+
+function normalizeString(value) {
+    if (typeof value === 'string') {
+        return value.trim();
+    }
+
+    if (value === null || typeof value === 'undefined') {
+        return '';
+    }
+
+    return String(value).trim();
+}
+
+function getConfigItemType(config) {
+    const type = normalizeString(config && config.type);
+    return type || 'token';
 }
 
 function parseOpenAiConfigFile(raw) {
     const parsed = JSON.parse(raw);
 
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('配置文件必须是包含 type 和 configs 的对象');
+        throw new Error('配置文件必须是包含 configs 的对象');
     }
 
-    if (parsed.type !== 'token' && parsed.type !== 'api_key') {
-        throw new Error('配置文件 type 仅支持 token 或 api_key');
+    if (Object.prototype.hasOwnProperty.call(parsed, 'type')) {
+        throw new Error('配置文件顶层 type 已废弃，请在 configs[] 配置项中设置 type');
     }
 
     if (!Array.isArray(parsed.configs)) {
         throw new Error('配置文件 configs 必须是数组');
+    }
+
+    for (const [index, config] of parsed.configs.entries()) {
+        if (!isPlainObject(config)) {
+            throw new Error(`配置文件 configs[${index}] 必须是对象`);
+        }
+
+        const configType = getConfigItemType(config);
+        if (configType !== 'token' && configType !== 'apikey') {
+            throw new Error('配置项 type 仅支持 token 或 apikey');
+        }
     }
 
     if (parsed.apikeys !== undefined) {
@@ -166,31 +194,36 @@ function createTokenRuntimeConfig(config, index) {
 }
 
 function createApiKeyRuntimeConfig(config, index) {
-    if (!config || !config.api_key || !config.base_url) {
-        throw new Error('api_key 配置至少需要 api_key 和 base_url');
+    const apikey = normalizeString(config && config.apikey);
+    const baseUrl = normalizeString(config && config.base_url).replace(/\/+$/, '');
+
+    if (!apikey || !baseUrl) {
+        throw new Error('apikey 配置至少需要 apikey 和 base_url');
     }
 
     return {
-        type: 'api_key',
+        type: 'apikey',
         index,
-        baseUrl: String(config.base_url).replace(/\/+$/, ''),
+        baseUrl,
         apiBasePath: '',
-        apiKey: config.api_key,
-        description: config.description || `OpenAI APIKey 配置 #${index + 1}`,
+        apiKey: apikey,
+        description: config.description || `APIKey 配置 #${index + 1}`,
         runtime: createDefaultApiKeyRuntime()
     };
 }
 
 function createRuntimeConfigs(parsed) {
-    if (parsed.type === 'api_key') {
-        return parsed.configs.map((config, index) => createApiKeyRuntimeConfig(config, index));
-    }
+    return parsed.configs.map((config, index) => {
+        if (getConfigItemType(config) === 'apikey') {
+            return createApiKeyRuntimeConfig(config, index);
+        }
 
-    return parsed.configs.map((config, index) => createTokenRuntimeConfig(config, index));
+        return createTokenRuntimeConfig(config, index);
+    });
 }
 
 function buildAuthHeadersForConfig(config) {
-    if (config.type === 'api_key') {
+    if (config.type === 'apikey') {
         return {
             authorization: `Bearer ${config.apiKey}`
         };
@@ -217,6 +250,7 @@ module.exports = {
     createRuntimeConfigs,
     createTokenRuntimeConfig,
     createApiKeyRuntimeConfig,
+    getConfigItemType,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring
 };

@@ -11,7 +11,6 @@ const {
 
 function createBaseConfig(extra = {}) {
   return {
-    type: 'token',
     proxy_port: 7890,
     port: 3009,
     configs: [
@@ -126,18 +125,38 @@ test('transformClaudeMessagesRequest force overrides client model and reasoning 
   assert.equal(transformed.instructions, 'system instruction');
 });
 
-test('createRuntimeConfigs keeps every api_key config entry', () => {
+test('createRuntimeConfigs defaults config items to token type', () => {
   const parsed = parseOpenAiConfigFile(JSON.stringify({
-    type: 'api_key',
     configs: [
       {
-        api_key: 'sk-1',
-        base_url: 'https://api.openai.com/v1',
+        access_token: 'token',
+        account_id: 'account',
+        description: 'primary token',
+      },
+    ],
+  }));
+
+  const runtimeConfigs = createRuntimeConfigs(parsed);
+
+  assert.equal(runtimeConfigs.length, 1);
+  assert.equal(runtimeConfigs[0].type, 'token');
+  assert.equal(runtimeConfigs[0].description, 'primary token');
+  assert.equal(runtimeConfigs[0].baseUrl, 'https://chatgpt.com');
+});
+
+test('createRuntimeConfigs supports item-level apikey configs', () => {
+  const parsed = parseOpenAiConfigFile(JSON.stringify({
+    configs: [
+      {
+        type: 'apikey',
+        base_url: 'https://api.example.com/v1/',
+        apikey: 'sk-1',
         description: 'primary',
       },
       {
-        api_key: 'sk-2',
-        base_url: 'https://example.com/v1',
+        type: 'apikey',
+        base_url: 'https://api.backup.example/v1',
+        apikey: 'sk-2',
         description: 'backup',
       },
     ],
@@ -146,13 +165,49 @@ test('createRuntimeConfigs keeps every api_key config entry', () => {
   const runtimeConfigs = createRuntimeConfigs(parsed);
 
   assert.equal(runtimeConfigs.length, 2);
-  assert.equal(runtimeConfigs[0].description, 'primary');
-  assert.equal(runtimeConfigs[1].description, 'backup');
+  assert.equal(runtimeConfigs[0].type, 'apikey');
+  assert.equal(runtimeConfigs[0].baseUrl, 'https://api.example.com/v1');
+  assert.equal(runtimeConfigs[0].apiKey, 'sk-1');
+  assert.equal(runtimeConfigs[1].type, 'apikey');
+  assert.equal(runtimeConfigs[1].baseUrl, 'https://api.backup.example/v1');
+  assert.equal(runtimeConfigs[1].apiKey, 'sk-2');
+});
+
+test('parseOpenAiConfigFile rejects deprecated top-level type', () => {
+  assert.throws(() => {
+    parseOpenAiConfigFile(JSON.stringify({
+      type: 'api_key',
+      configs: [],
+    }));
+  }, err => {
+    assert.equal(err instanceof Error, true);
+    assert.match(err.message, /顶层 type 已废弃/);
+    return true;
+  });
+});
+
+test('createRuntimeConfigs rejects apikey configs without item-level base_url', () => {
+  assert.throws(() => {
+    const parsed = parseOpenAiConfigFile(JSON.stringify({
+      configs: [
+        {
+          type: 'apikey',
+          apikey: 'sk-1',
+          description: 'primary',
+        },
+      ],
+    }));
+
+    createRuntimeConfigs(parsed);
+  }, err => {
+    assert.equal(err instanceof Error, true);
+    assert.match(err.message, /apikey 配置至少需要 apikey 和 base_url/);
+    return true;
+  });
 });
 
 test('parseOpenAiConfigFile accepts empty configs array', () => {
   const parsed = parseOpenAiConfigFile(JSON.stringify({
-    type: 'token',
     configs: [],
   }));
 

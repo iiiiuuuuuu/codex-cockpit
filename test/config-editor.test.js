@@ -17,7 +17,6 @@ const {
 
 function createTokenConfig(overrides = {}) {
   return {
-    type: 'token',
     proxy_port: 7890,
     port: 3009,
     claude_code: {
@@ -37,10 +36,10 @@ function createTokenConfig(overrides = {}) {
 
 function createApiKeyConfig(overrides = {}) {
   return {
-    type: 'api_key',
     configs: [
       {
-        api_key: 'sk-primary',
+        type: 'apikey',
+        apikey: 'sk-primary',
         base_url: 'https://api.openai.com/v1',
         description: 'primary key',
       },
@@ -113,6 +112,22 @@ test('buildImportedConfigItem rejects token input without required session field
     assert.equal(err instanceof ConfigEditorError, true);
     assert.match(err.message, /AuthSession JSON/);
     return true;
+  });
+});
+
+test('buildImportedConfigItem keeps item-level apikey credentials', () => {
+  const imported = buildImportedConfigItem({
+    type: 'apikey',
+    apikey: '  sk-third-party  ',
+    base_url: ' https://api.example.com/v1/ ',
+    description: ' third party ',
+  });
+
+  assert.deepEqual(imported, {
+    type: 'apikey',
+    apikey: 'sk-third-party',
+    base_url: 'https://api.example.com/v1',
+    description: 'third party',
   });
 });
 
@@ -218,7 +233,7 @@ test('writeParsedConfigFile persists a validated config file', () => {
   assert.equal(loaded.configs[1].description, 'secondary');
 });
 
-test('writeParsedConfigFile rejects invalid api_key entries', () => {
+test('writeParsedConfigFile rejects invalid apikey entries', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'airouter-config-editor-'));
   const configPath = path.join(tempDir, 'openai.json');
 
@@ -226,7 +241,8 @@ test('writeParsedConfigFile rejects invalid api_key entries', () => {
     writeParsedConfigFile(configPath, createApiKeyConfig({
       configs: [
         {
-          api_key: '',
+          type: 'apikey',
+          apikey: '',
           base_url: '',
           description: 'broken',
         },
@@ -234,7 +250,7 @@ test('writeParsedConfigFile rejects invalid api_key entries', () => {
     }));
   }, err => {
     assert.equal(err instanceof Error, true);
-    assert.match(err.message, /api_key 配置至少需要 api_key 和 base_url/);
+    assert.match(err.message, /apikey 配置至少需要 apikey 和 base_url/);
     return true;
   });
 });

@@ -382,6 +382,34 @@ test('start enables the proxy by default and uses the default proxy port when th
   assert.equal(stopResult.status, 0, stopResult.stderr);
 });
 
+test('start wizard creates config without deprecated top-level type', () => {
+  const workspace = prepareWorkspaceWithoutConfig(
+    buildManagedAppScript({
+      startupLog: null,
+      extraStartupCode: 'console.log(`starting with mode config`);',
+    })
+  );
+
+  const startResult = runCommand(['start'], {
+    ...workspace,
+    input: 'n\nn\n',
+    extraEnv: {
+      AIROUTER_FORCE_INTERACTIVE: '1',
+    },
+  });
+
+  assert.equal(startResult.status, 0, startResult.stderr);
+
+  const savedConfig = JSON.parse(fs.readFileSync(path.join(workspace.cwd, 'openai.json'), 'utf8'));
+  assert.equal(Object.prototype.hasOwnProperty.call(savedConfig, 'type'), false);
+  assert.deepEqual(savedConfig.configs, []);
+  assert.deepEqual(savedConfig.apikeys, []);
+  assert.equal(Object.prototype.hasOwnProperty.call(savedConfig, 'proxy_port'), false);
+
+  const stopResult = runCommand(['stop'], workspace);
+  assert.equal(stopResult.status, 0, stopResult.stderr);
+});
+
 test('start fails with a clear message when config is missing in non-interactive mode', () => {
   const workspace = prepareWorkspaceWithoutConfig(
     buildManagedAppScript({ startupLog: 'should not start' })

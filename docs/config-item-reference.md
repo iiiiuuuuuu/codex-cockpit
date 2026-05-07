@@ -1,8 +1,11 @@
 # 配置项字段说明
-- token
+
+顶层 `type` 已废弃，不再识别；配置类型写在 `configs[]` 的每个配置项里。未写 `type` 的配置项默认是 `token`。
+
+## 基础结构
+
 ```
 {
-  "type":"token",
   "apikeys": [],
   "auth_token": "",
   "port":3009,
@@ -20,11 +23,30 @@
         "access_token": "",
         "account_id": "",
         "description": ""
+      },
+      {
+        "type": "apikey",
+        "base_url": "https://api.example.com/v1",
+        "apikey": "sk-xxx",
+        "description": "third-party provider"
       }
     ]
 }
 
 ```
+
+## token 配置项
+
+未写 `type` 或 `type` 为 `token` 时，配置项格式如下：
+
+```json
+{
+  "access_token": "",
+  "account_id": "",
+  "description": ""
+}
+```
+
 - access_token 和 account_id 获取  
   登录gpt plus后打开：https://chatgpt.com/api/auth/session
   取以下值配置上去，有效时间是3个月
@@ -44,7 +66,9 @@
 - `responses.model_aliases` 的键比较时忽略大小写，例如配置 `GPT-5.2` 也会匹配请求里的 `gpt-5.2`
 - 默认示例配置里包含 `gpt-5.2 -> gpt-5.5`
 - 原因：当前 Codex API 的配置形式暂不直接支持 `gpt-5.5`，所以默认把 `gpt-5.2` 映射成 `gpt-5.5`，方便继续沿用现有配置写法
-- `/claude/v1/messages` 仅支持 `token` 模式；`api_key` 模式下该路由会明确返回不支持
+- `/claude/v1/messages` 仅支持 `token` 配置项；`apikey` 配置项不会被用于该路由
+- 每分钟额度轮询会检查所有 `token` 配置项
+- 调度优先级：只要有可用 `token` 配置项，就优先使用 `token`；只有所有 `token` 都不可用时才使用 `apikey`；当轮询发现 `token` 恢复可用时，会切回 `token`
 
 
 - 原始配置项字段说明
@@ -72,33 +96,37 @@
 
 也支持直接粘贴已经整理好的最小配置项 JSON。
 
-## api_key 模式
+## apikey 配置项
 
-`type` 为 `api_key` 时，`configs` 里的每一项格式如下：
+`type` 为 `apikey` 时，配置项格式如下：
 
 ```json
 {
-  "api_key": "<api key>",
+  "type": "apikey",
   "base_url": "https://api.openai.com/v1",
+  "apikey": "sk-xxx",
   "description": "primary key"
 }
 ```
 
 字段说明：
 
-- `api_key`
+- `type`
+  - 固定为 `apikey`
+- `apikey`
   - 上游兼容接口使用的 API Key
 - `base_url`
   - 上游兼容接口根地址
-  - 例如 `https://api.openai.com/v1`
+  - 不要求是 Codex 或 ChatGPT 地址；任意提供 OpenAI 兼容 `/v1/*` 接口的第三方服务都可以配置在这里
+  - 例如 `https://api.openai.com/v1` 或 `https://api.example.com/v1`
 - `description`
   - 本地展示用的描述文本
-- `api_key` 模式支持 `/v1/*`、`/wham/*` 等通用转发路由
-- `api_key` 模式不支持 `/claude/v1/messages`
+- `apikey` 配置项支持 `/v1/*` 等 OpenAI 兼容转发路由
+- `apikey` 配置项不参与 Codex quota 轮询，不支持 `/claude/v1/messages`
 
 ## 安全说明
 
-- `access_token`、`api_key` 都属于敏感信息
+- `access_token`、`apikey` 都属于敏感信息
 - 顶层 `apikeys`、`auth_token` 也属于敏感信息
 - 不要把完整 AuthSession JSON、`openai.json`、日志里的敏感字段发给别人
 - 退出 ChatGPT 登录后，`token` 模式下的 `access_token` 可能失效

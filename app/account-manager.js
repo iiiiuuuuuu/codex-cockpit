@@ -6,7 +6,6 @@ const { requestBuffered } = require('./upstream-request');
 function createAccountManager(options) {
   const {
     configs,
-    configType,
     initialActiveConfigIndex = 0,
     quotaCheckPath,
     quotaCheckTimeoutMs = 0,
@@ -68,7 +67,7 @@ function createAccountManager(options) {
     const reasonMap = {
       ok: '正常',
       unchecked: '未检查',
-      api_key: 'API Key 模式',
+      apikey: 'API Key 模式',
       missing_credentials: '缺少凭证',
       rate_limit_not_allowed: '额度不可用',
       rate_limit_reached: '额度已用尽',
@@ -245,29 +244,39 @@ function createAccountManager(options) {
     return Boolean(config && config.runtime && config.runtime.enabled && config.runtime.available);
   }
 
-  /**
-   * 从指定起点开始寻找下一个可用账号。
-   */
-  function findNextAvailableConfigIndex(startIndex) {
-    if (configs.length === 0) {
-      return -1;
-    }
+  function getConfigPriority(config) {
+    return config && config.type === 'token' ? 0 : 1;
+  }
 
-    for (let offset = 0; offset < configs.length; offset += 1) {
-      const index = (startIndex + offset) % configs.length;
-      if (isConfigAvailable(configs[index])) {
-        return index;
+  function findHighestPriorityAvailableConfigIndex(predicate = () => true) {
+    let selectedIndex = -1;
+    let selectedConfig = null;
+
+    for (let index = 0; index < configs.length; index += 1) {
+      const config = configs[index];
+      if (!predicate(config) || !isConfigAvailable(config)) {
+        continue;
+      }
+
+      if (
+        selectedIndex === -1 ||
+        getConfigPriority(config) < getConfigPriority(selectedConfig) ||
+        (getConfigPriority(config) === getConfigPriority(selectedConfig) && index === activeConfigIndex)
+      ) {
+        selectedIndex = index;
+        selectedConfig = config;
       }
     }
 
-    return -1;
+    return selectedIndex;
   }
 
   /**
    * 返回当前活动账号，不做切换，也不做任何 I/O。
    */
-  function getActiveConfig() {
-    return configs[activeConfigIndex] || null;
+  function getActiveConfig(predicate = () => true) {
+    const currentConfig = configs[activeConfigIndex] || null;
+    return currentConfig && predicate(currentConfig) ? currentConfig : null;
   }
 
   function withQuotaCheckTimeout(promise) {
@@ -298,24 +307,20 @@ function createAccountManager(options) {
       return null;
     }
 
-    const currentConfig = getActiveConfig();
-    if (isConfigAvailable(currentConfig)) {
-      return currentConfig;
-    }
-
-    const fallbackIndex = findNextAvailableConfigIndex((activeConfigIndex + 1) % Math.max(configs.length, 1));
-    if (fallbackIndex !== -1) {
-      const previousConfig = currentConfig;
-      activeConfigIndex = fallbackIndex;
-      const nextConfig = configs[activeConfigIndex];
-
-      if (previousConfig !== nextConfig && reason !== 'startup') {
-        warn(`账号切换: ${previousConfig ? getAccountLabel(previousConfig) : 'none'} -> ${getAccountLabel(nextConfig)} (${reason})`);
+    const currentConfig = configs[activeConfigIndex] || null;
+    const priorityIndex = findHighestPriorityAvailableConfigIndex();
+    if (priorityIndex !== -1) {
+      const nextConfig = configs[priorityIndex];
+      if (priorityIndex !== activeConfigIndex) {
+        const previousConfig = currentConfig;
+        activeConfigIndex = priorityIndex;
+        if (reason !== 'startup') {
+          warn(`账号切换: ${previousConfig ? getAccountLabel(previousConfig) : 'none'} -> ${getAccountLabel(nextConfig)} (${reason})`);
+        }
       }
 
       return nextConfig;
     }
-
     if (currentConfig) {
       warn(`没有可用账号，继续使用当前账号 ${getAccountLabel(currentConfig)} (${reason})`);
       return currentConfig;
@@ -383,36 +388,10 @@ function createAccountManager(options) {
   }
 
   /**
-   * 从当前账号之后按顺序刷新后续账号，找到第一个可用账号即停止。
-   */
-  async function refreshNextAvailableConfigWithLogging(reason) {
-    if (configs.length <= 1) {
-      return null;
-    }
-
-    for (let offset = 1; offset < configs.length; offset += 1) {
-      const index = (activeConfigIndex + offset) % configs.length;
-      const config = configs[index];
-
-      if (!config) {
-        continue;
-      }
-
-      await refreshSingleConfigWithLogging(config, reason);
-
-      if (isConfigAvailable(config)) {
-        return config;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * 轮询额度；后台轮询优先检查当前活动账号，当前失效后再按顺序刷新后续账号，直到找到下一个可用账号；若找不到，则本轮会把所有账号都刷新一遍。启动阶段仍会全量刷新。
+   * 轮询所有 token 账号额度；token 永远优先于 apikey，token 全部不可用时才使用 apikey 兜底。
    */
   async function refreshQuotas(reason = 'poll') {
-    if (!shouldUseQuotaMonitoring(configType)) {
+    if (!configs.some(config => shouldUseQuotaMonitoring(config.type))) {
       return;
     }
 
@@ -424,17 +403,8 @@ function createAccountManager(options) {
     const previousActiveIndex = activeConfigIndex;
 
     try {
-      if (reason === 'poll') {
-        const currentConfig = getActiveConfig();
-
-        if (currentConfig) {
-          await refreshSingleConfigWithLogging(currentConfig, reason);
-          if (!isConfigAvailable(currentConfig)) {
-            await refreshNextAvailableConfigWithLogging(reason);
-          }
-        }
-      } else {
-        for (const config of configs) {
+      for (const config of configs) {
+        if (shouldUseQuotaMonitoring(config.type)) {
           await refreshSingleConfigWithLogging(config, reason);
         }
       }
@@ -457,7 +427,7 @@ function createAccountManager(options) {
    * 启动后台额度轮询定时器。
    */
   function startQuotaMonitor() {
-    if (!shouldUseQuotaMonitoring(configType)) {
+    if (!configs.some(config => shouldUseQuotaMonitoring(config.type))) {
       return;
     }
 

@@ -17,7 +17,7 @@ test('refreshConfigAdminResponse refreshes all quotas before building the admin 
 
   const response = await refreshConfigAdminResponse({
     accountManager: manager,
-    configType: 'token',
+    shouldRefreshQuota: true,
     buildResponse: () => expectedResponse,
   });
 
@@ -25,7 +25,7 @@ test('refreshConfigAdminResponse refreshes all quotas before building the admin 
   assert.equal(response, expectedResponse);
 });
 
-test('refreshConfigAdminResponse skips quota refresh in api_key mode', async () => {
+test('refreshConfigAdminResponse skips quota refresh when no token configs exist', async () => {
   let called = false;
   const manager = {
     refreshQuotas: async () => {
@@ -33,13 +33,13 @@ test('refreshConfigAdminResponse skips quota refresh in api_key mode', async () 
     },
   };
   const expectedResponse = {
-    mode: 'api_key',
+    mode: 'apikey',
     configs: [],
   };
 
   const response = await refreshConfigAdminResponse({
     accountManager: manager,
-    configType: 'api_key',
+    shouldRefreshQuota: false,
     buildResponse: () => expectedResponse,
   });
 

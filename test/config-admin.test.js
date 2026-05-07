@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   buildConfigSnapshotRequest,
@@ -9,8 +11,23 @@ const {
   parseResponsesModelAliasesInput,
   parseResponsesApiResponse,
   getPreferredApiKey,
+  getConfigGuideContent,
+  getConfigIdentityColumnLabel,
+  getConfigIdentityValue,
   extractResponseSummary,
 } = require('../public/config-admin.js');
+
+test('config admin hides the responses settings module', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
+  const start = html.indexOf('<div id="responsesSettingsSection" hidden>');
+  const end = html.indexOf('<div class="composer-title">新增配置项</div>');
+  const section = start >= 0 && end > start ? html.slice(start, end) : '';
+
+  assert.ok(section, 'responses settings section should be wrapped in a hidden container');
+  assert.match(section, /Responses 设置/);
+  assert.match(section, /这里可以配置 `\/v1\/responses` 的模型别名映射/);
+  assert.match(section, /saveResponsesSettingsButton/);
+});
 
 test('buildConfigSnapshotRequest uses GET when only loading the latest snapshot', () => {
   assert.deepEqual(
@@ -103,6 +120,55 @@ test('getPreferredApiKey returns the first configured apikey', () => {
   assert.equal(getPreferredApiKey({
     apikeys: ['router-key', 'backup-key'],
   }), 'router-key');
+});
+
+test('getConfigGuideContent always includes token and apikey examples', () => {
+  const guide = getConfigGuideContent({
+    mode: 'token',
+  });
+
+  assert.match(guide.rawJsonPlaceholder, /"accessToken": "\.\.\."/);
+  assert.match(guide.rawJsonPlaceholder, /"type": "apikey"/);
+  assert.match(guide.rawJsonPlaceholder, /"apikey": "sk-xxx"/);
+  assert.match(guide.rawJsonPlaceholder, /"base_url": "https:\/\/api\.example\.com\/v1"/);
+  assert.equal(guide.steps.some(step => /第三方 API/.test(step.description)), true);
+});
+
+test('getConfigIdentityColumnLabel uses upstream config when any apikey item exists', () => {
+  assert.equal(getConfigIdentityColumnLabel({
+    configs: [
+      {
+        item: {
+          type: 'apikey',
+        },
+      },
+    ],
+  }), '上游配置');
+  assert.equal(getConfigIdentityColumnLabel({
+    configs: [
+      {
+        item: {
+          account_id: 'account-1',
+        },
+      },
+    ],
+  }), 'account_id');
+});
+
+test('getConfigIdentityValue shows base_url and masks apikey config secrets', () => {
+  assert.equal(
+    getConfigIdentityValue(
+      { mode: 'mixed' },
+      {
+        item: {
+          type: 'apikey',
+          base_url: 'https://api.example.com/v1',
+          apikey: 'sk-1234567890',
+        },
+      },
+    ),
+    'https://api.example.com/v1 (sk--...7890)',
+  );
 });
 
 test('extractResponseSummary prefers output_text when available', () => {

@@ -23,6 +23,26 @@ npm start
 管理页还提供了一个“测试请求”按钮，点击按钮请求测试即可，有正常内容返回，就表示airouter已经成功配置
 > **注意：** chatgpt 不要退出登录，退出登录后 token 会失效，建议在无痕窗口登录 GPT 后获取登录态
 
+`configs` 里可以同时放 ChatGPT Codex token 账号和第三方 OpenAI 兼容 API。未写 `type` 的配置项默认是 `token`；第三方 API 配置项写 `type: "apikey"`：
+
+```json
+[
+  {
+    "access_token": "chatgpt-access-token",
+    "account_id": "account-id",
+    "description": "codex token account"
+  },
+  {
+    "type": "apikey",
+    "base_url": "https://api.example.com/v1",
+    "apikey": "sk-xxx",
+    "description": "third-party provider"
+  }
+]
+```
+
+`base_url` 不要求是 Codex 或 ChatGPT 地址，只要上游提供 OpenAI 兼容的 `/v1/*` 接口即可。调度优先级固定为 token 高于 apikey：每分钟会轮询所有 token 账号；只在所有 token 都不可用时才会使用 apikey；一旦有 token 恢复可用，会优先切回 token。
+
 ```
 无api_key
 curl http://127.0.0.1:3009/v1/responses \

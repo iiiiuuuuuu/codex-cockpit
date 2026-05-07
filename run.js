@@ -221,6 +221,7 @@ async function runConfigWizard() {
       ...templateConfig,
       apikeys: enableApiKey ? [generateRandomSecret('sk-airouter-')] : [],
     };
+    delete nextConfig.type;
 
     if (proxyPort === null) {
       delete nextConfig.proxy_port;

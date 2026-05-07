@@ -33,7 +33,7 @@ test('buildProxyHeaders strips local-only auth headers before forwarding upstrea
     host: 'localhost:3009',
     connection: 'keep-alive',
   }, {
-    type: 'api_key',
+    type: 'apikey',
     apiKey: 'upstream-api-key',
   }, 27);
 
@@ -49,11 +49,11 @@ test('buildProxyHeaders strips local-only auth headers before forwarding upstrea
   assert.equal(headers['content-length'], '27');
 });
 
-test('createClaudeMessagesHandler rejects api_key mode with a clear error before contacting upstream', async () => {
+test('createClaudeMessagesHandler rejects apikey configs with a clear error before contacting upstream', async () => {
   let upstreamCalled = false;
   const handler = createClaudeMessagesHandler({
     getConfig: () => ({
-      type: 'api_key',
+      type: 'apikey',
       index: 0,
       description: 'APIKey config',
       apiKey: 'upstream-api-key',
@@ -81,6 +81,6 @@ test('createClaudeMessagesHandler rejects api_key mode with a clear error before
   assert.equal(res.statusCode, 400);
   assert.match(res.payload.error, /Unsupported Mode/);
   assert.match(res.payload.message, /\/claude\/v1\/messages/);
-  assert.match(res.payload.message, /api_key/);
+  assert.match(res.payload.message, /apikey/);
   assert.match(res.payload.message, /token/);
 });

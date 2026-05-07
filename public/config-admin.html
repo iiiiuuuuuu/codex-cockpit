@@ -437,24 +437,7 @@
 
     <section class="composer">
       <div class="composer-layout">
-        <aside class="guide-list">
-          <section class="guide-item">
-            <div class="guide-step">1</div>
-            <div>
-              <h2 class="guide-title">登录 ChatGPT</h2>
-              <p class="guide-desc">先登录 ChatGPT，确保账号已经在线。</p>
-              <a class="guide-action" href="https://chatgpt.com/" target="_blank" rel="noreferrer">打开 ChatGPT</a>
-            </div>
-          </section>
-          <section class="guide-item">
-            <div class="guide-step">2</div>
-            <div>
-              <h2 class="guide-title">获取 AuthSession</h2>
-              <p class="guide-desc">打开 AuthSession 页面，复制完整 JSON 内容并粘贴到输入框。</p>
-              <a class="guide-action" href="https://chatgpt.com/api/auth/session" target="_blank" rel="noreferrer">打开 AuthSession 页面</a>
-            </div>
-          </section>
-        </aside>
+        <aside class="guide-list" id="guideList"></aside>
 
 	        <div>
           <div class="composer-head">
@@ -469,34 +452,28 @@
             <div id="apiKeysList" class="key-list"></div>
           </div>
 
-          <div class="composer-head">
-            <div class="composer-title">Responses 设置</div>
-          </div>
-          <p>这里可以配置 `/v1/responses` 的模型别名映射。键匹配时忽略大小写，保存后会立即热重载。</p>
-          <div class="settings-panel">
-            <div class="field">
-              <label class="field-label" for="responsesModelAliasesInput">responses.model_aliases</label>
-              <textarea id="responsesModelAliasesInput" spellcheck="false" placeholder='{
+          <div id="responsesSettingsSection" hidden>
+            <div class="composer-head">
+              <div class="composer-title">Responses 设置</div>
+            </div>
+            <p>这里可以配置 `/v1/responses` 的模型别名映射。键匹配时忽略大小写，保存后会立即热重载。</p>
+            <div class="settings-panel">
+              <div class="field">
+                <label class="field-label" for="responsesModelAliasesInput">responses.model_aliases</label>
+                <textarea id="responsesModelAliasesInput" spellcheck="false" placeholder='{
   "gpt-5.2": "gpt-5.5"
 }'></textarea>
-            </div>
-            <div class="actions">
-              <button class="primary" type="button" id="saveResponsesSettingsButton">保存 Responses 设置</button>
+              </div>
+              <div class="actions">
+                <button class="primary" type="button" id="saveResponsesSettingsButton">保存 Responses 设置</button>
+              </div>
             </div>
           </div>
 
 	          <div class="composer-head">
 	            <div class="composer-title">新增配置项</div>
 	          </div>
-	          <textarea id="rawJsonInput" spellcheck="false" placeholder='{
-  "user": {
-    "email": "user@example.com"
-  },
-  "account": {
-    "id": "account-id"
-  },
-  "accessToken": "..."
-}'></textarea>
+	          <textarea id="rawJsonInput" spellcheck="false"></textarea>
           <div class="actions">
             <button class="primary" type="button" id="addButton">直接新增</button>
           </div>
@@ -509,6 +486,7 @@
   <script src="/config-admin.js"></script>
   <script>
     const cardsEl = document.getElementById('cards');
+    const guideListEl = document.getElementById('guideList');
     const messageEl = document.getElementById('message');
     const rawJsonInput = document.getElementById('rawJsonInput');
     const addButton = document.getElementById('addButton');
@@ -529,6 +507,9 @@
       formatResponsesModelAliasesInput,
       parseResponsesModelAliasesInput,
       getPreferredApiKey,
+      getConfigGuideContent,
+      getConfigIdentityColumnLabel,
+      getConfigIdentityValue,
     } = window.AirouterConfigAdmin;
 
     let snapshot = null;
@@ -567,6 +548,22 @@
 
       renderApiKeys(apikeys);
       responsesModelAliasesInput.value = formatResponsesModelAliasesInput(data);
+      renderGuide(data);
+      rawJsonInput.placeholder = getConfigGuideContent(data).rawJsonPlaceholder;
+    }
+
+    function renderGuide(data) {
+      const guide = getConfigGuideContent(data);
+      guideListEl.innerHTML = guide.steps.map((step, index) => `
+        <section class="guide-item">
+          <div class="guide-step">${index + 1}</div>
+          <div>
+            <h2 class="guide-title">${escapeHtml(step.title)}</h2>
+            <p class="guide-desc">${escapeHtml(step.description)}</p>
+            ${step.actionHref ? `<a class="guide-action" href="${escapeHtml(step.actionHref)}" target="_blank" rel="noreferrer">${escapeHtml(step.actionText)}</a>` : ''}
+          </div>
+        </section>
+      `).join('');
     }
 
     function renderApiKeys(apikeys) {
@@ -624,7 +621,7 @@
             <thead>
               <tr>
                 <th class="config-col">配置</th>
-                <th class="account-id-col">account_id</th>
+                <th class="account-id-col">${escapeHtml(getConfigIdentityColumnLabel(data))}</th>
                 <th>description</th>
                 <th>摘要</th>
                 <th>操作</th>
@@ -639,7 +636,7 @@
                       <div>${runtimeBadges(item)}</div>
                     </div>
                   </td>
-                  <td class="account-id-cell mono">${escapeHtml(item.item.account_id || '-')}</td>
+                  <td class="account-id-cell mono">${escapeHtml(getConfigIdentityValue(data, item))}</td>
                   <td class="cell-text">${escapeHtml(item.item.description || '-')}</td>
                   <td>${renderSummary(item.runtime)}</td>
                   <td class="action-cell">
