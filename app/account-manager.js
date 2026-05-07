@@ -294,6 +294,22 @@ function createAccountManager(options) {
     return currentConfig && predicate(currentConfig) ? currentConfig : null;
   }
 
+  function activateConfig(index, reason = 'manual') {
+    if (!Number.isInteger(index) || index < 0 || index >= configs.length) {
+      throw new Error('配置项索引不合法');
+    }
+
+    const previousConfig = configs[activeConfigIndex] || null;
+    const nextConfig = configs[index];
+    activeConfigIndex = index;
+
+    if (previousConfig !== nextConfig && reason !== 'startup') {
+      warn(`账号切换: ${previousConfig ? getAccountLabel(previousConfig) : 'none'} -> ${getAccountLabel(nextConfig)} (${reason})`);
+    }
+
+    return nextConfig;
+  }
+
   function withQuotaCheckTimeout(promise) {
     if (!Number.isFinite(quotaCheckTimeoutMs) || quotaCheckTimeoutMs <= 0) {
       return promise;
@@ -478,6 +494,7 @@ function createAccountManager(options) {
     startQuotaMonitor,
     stopQuotaMonitor,
     getActiveConfig,
+    activateConfig,
     getAccountStatus,
     applyQuotaPayload,
     markConfigUnavailable,

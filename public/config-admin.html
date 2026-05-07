@@ -122,6 +122,19 @@
       font-size: 14px;
     }
 
+    .guide-example {
+      margin: 10px 0 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(18, 27, 46, 0.06);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
     .guide-action {
       display: inline-flex;
       align-items: center;
@@ -331,7 +344,7 @@
 
     table {
       width: 100%;
-      min-width: 1120px;
+      min-width: 1040px;
       border-collapse: collapse;
       background: rgba(255, 255, 255, 0.66);
       border-radius: 18px;
@@ -381,14 +394,14 @@
 
     .account-id-col,
     .account-id-cell {
-      width: 320px;
-      min-width: 320px;
+      width: 240px;
+      min-width: 240px;
     }
 
     .account-id-cell {
-      white-space: nowrap;
-      word-break: normal;
-      overflow-wrap: normal;
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
 
     .summary-cell {
@@ -403,8 +416,16 @@
     }
 
     .action-cell {
-      width: 110px;
+      width: 150px;
       white-space: nowrap;
+    }
+
+    .action-cell button {
+      padding: 8px 12px;
+    }
+
+    .action-cell button + button {
+      margin-left: 6px;
     }
 
     .empty {
@@ -502,11 +523,14 @@
       buildConfigSnapshotRequest,
       buildJsonRequestOptions,
       parseResponsesApiResponse,
+      extractErrorMessage,
       buildHelloTestRequest,
+      buildHelloTestHeaders,
       extractResponseSummary,
       formatResponsesModelAliasesInput,
       parseResponsesModelAliasesInput,
       getPreferredApiKey,
+      buildRequestUrl,
       getConfigGuideContent,
       getConfigIdentityColumnLabel,
       getConfigIdentityValue,
@@ -560,6 +584,7 @@
           <div>
             <h2 class="guide-title">${escapeHtml(step.title)}</h2>
             <p class="guide-desc">${escapeHtml(step.description)}</p>
+            ${step.example ? `<pre class="guide-example">${escapeHtml(step.example)}</pre>` : ''}
             ${step.actionHref ? `<a class="guide-action" href="${escapeHtml(step.actionHref)}" target="_blank" rel="noreferrer">${escapeHtml(step.actionText)}</a>` : ''}
           </div>
         </section>
@@ -640,6 +665,7 @@
                   <td class="cell-text">${escapeHtml(item.item.description || '-')}</td>
                   <td>${renderSummary(item.runtime)}</td>
                   <td class="action-cell">
+                    <button class="secondary" type="button" data-action="activate" data-index="${item.index}" ${item.is_active ? 'disabled' : ''}>${item.is_active ? '当前' : '切换'}</button>
                     <button class="danger" type="button" data-action="delete" data-index="${item.index}">删除</button>
                   </td>
                 </tr>
@@ -651,13 +677,10 @@
     }
 
     function withAuthToken(url) {
-      const resolved = new URL(url, window.location.origin);
-
-      if (adminAuthToken) {
-        resolved.searchParams.set('auth_token', adminAuthToken);
-      }
-
-      return `${resolved.pathname}${resolved.search}`;
+      return buildRequestUrl(url, {
+        adminAuthToken,
+        origin: window.location.origin,
+      });
     }
 
     async function requestJson(url, options = {}) {
@@ -668,7 +691,7 @@
       const payload = parseResponsesApiResponse(text, contentType);
 
       if (!response.ok) {
-        const error = new Error(payload?.details || payload?.message || payload?.error || `HTTP ${response.status}`);
+        const error = new Error(extractErrorMessage(payload, `HTTP ${response.status}`));
         error.status = response.status;
         throw error;
       }
@@ -754,6 +777,17 @@
       setMessage('info', 'apikey 已删除。');
     }
 
+    async function activateConfig(index) {
+      const result = await requestJson(`/admin/api/configs/${index}/activate`, {
+        method: 'POST',
+      });
+
+      snapshot = result;
+      renderHeader(snapshot);
+      renderCards(snapshot);
+      setMessage('info', '当前账号已临时切换。');
+    }
+
     async function deleteConfig(index) {
       if (!window.confirm('确认删除这个配置项吗？')) {
         return;
@@ -771,11 +805,15 @@
 
     async function sendHelloTestRequest() {
       const preferredApiKey = getPreferredApiKey(snapshot || {});
+      const sessionId = window.crypto && typeof window.crypto.randomUUID === 'function'
+        ? window.crypto.randomUUID()
+        : `airouter-test-${Date.now()}`;
       const responsePayload = await requestJson('/v1/responses', {
         method: 'POST',
-        headers: preferredApiKey ? {
-          Authorization: `Bearer ${preferredApiKey}`,
-        } : {},
+        headers: {
+          ...buildHelloTestHeaders(sessionId),
+          ...(preferredApiKey ? { Authorization: `Bearer ${preferredApiKey}` } : {}),
+        },
         body: JSON.stringify(buildHelloTestRequest(snapshot || {})),
       });
       const responseSummary = extractResponseSummary(responsePayload);
@@ -850,6 +888,19 @@
           setMessage('error', error.message);
         } finally {
           deleteApiKeyButton.disabled = false;
+        }
+        return;
+      }
+
+      const activateButton = event.target.closest('[data-action="activate"]');
+      if (activateButton) {
+        activateButton.disabled = true;
+        try {
+          await activateConfig(activateButton.dataset.index);
+        } catch (error) {
+          setMessage('error', error.message);
+        } finally {
+          activateButton.disabled = false;
         }
         return;
       }

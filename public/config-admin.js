@@ -103,6 +103,28 @@
     }
   }
 
+  function extractErrorMessage(payload, fallbackMessage) {
+    if (payload && typeof payload === 'object') {
+      if (typeof payload.details === 'string' && payload.details) {
+        return payload.details;
+      }
+
+      if (typeof payload.message === 'string' && payload.message) {
+        return payload.message;
+      }
+
+      if (payload.error && typeof payload.error === 'object' && typeof payload.error.message === 'string' && payload.error.message) {
+        return payload.error.message;
+      }
+
+      if (typeof payload.error === 'string' && payload.error) {
+        return payload.error;
+      }
+    }
+
+    return fallbackMessage;
+  }
+
   function buildJsonRequestOptions(options) {
     const normalizedOptions = options && typeof options === 'object' ? options : {};
 
@@ -129,6 +151,18 @@
       url: '/admin/api/configs',
       options: {},
     };
+  }
+
+  function buildRequestUrl(url, options = {}) {
+    const origin = options.origin || 'http://localhost';
+    const adminAuthToken = typeof options.adminAuthToken === 'string' ? options.adminAuthToken : '';
+    const resolved = new URL(url, origin);
+
+    if (adminAuthToken && resolved.pathname.startsWith('/admin/')) {
+      resolved.searchParams.set('auth_token', adminAuthToken);
+    }
+
+    return `${resolved.pathname}${resolved.search}`;
   }
 
   function getPreferredApiKey(snapshot) {
@@ -161,6 +195,12 @@
         {
           title: '获取 AuthSession 或 API Key',
           description: 'Codex token 可粘贴 AuthSession JSON；第三方 API 可粘贴 apikey 配置项 JSON。',
+          example: JSON.stringify({
+            type: 'apikey',
+            base_url: 'https://api.example.com/v1',
+            apikey: 'sk-xxx',
+            description: 'third-party provider',
+          }, null, 2),
           actionText: '打开 AuthSession 页面',
           actionHref: 'https://chatgpt.com/api/auth/session',
         },
@@ -216,13 +256,9 @@
   }
 
   function buildHelloTestRequest(snapshot) {
-    const configuredModel = snapshot && snapshot.claude_code && typeof snapshot.claude_code.model === 'string'
-      ? snapshot.claude_code.model.trim()
-      : '';
-
     return {
-      model: configuredModel || 'gpt-5.4',
-      stream: true,
+      model: 'gpt-5.5',
+      instructions: '',
       input: [
         {
           type: 'message',
@@ -235,6 +271,25 @@
           ],
         },
       ],
+      tools: [],
+      tool_choice: 'auto',
+      parallel_tool_calls: false,
+      store: false,
+      stream: true,
+      include: [],
+    };
+  }
+
+  function buildHelloTestHeaders(sessionId) {
+    const normalizedSessionId = typeof sessionId === 'string' && sessionId.trim()
+      ? sessionId.trim()
+      : 'airouter-test-request';
+
+    return {
+      originator: 'codex_cli_rs',
+      version: '1.0.1',
+      session_id: normalizedSessionId,
+      'x-client-request-id': normalizedSessionId,
     };
   }
 
@@ -308,9 +363,12 @@
 
   const exported = {
     buildConfigSnapshotRequest,
+    buildRequestUrl,
     buildJsonRequestOptions,
     parseResponsesApiResponse,
+    extractErrorMessage,
     getPreferredApiKey,
+    buildHelloTestHeaders,
     getConfigGuideContent,
     getConfigIdentityColumnLabel,
     getConfigIdentityValue,

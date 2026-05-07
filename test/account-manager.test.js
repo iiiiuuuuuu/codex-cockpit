@@ -169,6 +169,40 @@ test('getActiveConfig returns the current active account without switching', () 
   assert.equal(warnings.length, 0);
 });
 
+test('activateConfig switches the active config without changing availability', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { available: false, reason: 'quota_check_failed' }),
+  ];
+  const { manager, warnings } = createManager(configs);
+
+  const selected = manager.activateConfig(1, 'manual');
+
+  assert.equal(selected, configs[1]);
+  assert.equal(manager.getActiveConfig(), configs[1]);
+  assert.equal(configs[1].runtime.available, false);
+  assert.match(warnings[0], /账号切换: #1 account-1 -> #2 account-2 \(manual\)/);
+});
+
+test('ensureActiveConfig can switch away after a manual activation', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { available: true, reason: 'ok' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-1',
+    }),
+  ];
+  const { manager } = createManager(configs);
+
+  manager.activateConfig(1, 'manual');
+  const selected = manager.ensureActiveConfig('poll');
+
+  assert.equal(selected, configs[0]);
+  assert.equal(manager.getActiveConfig(), configs[0]);
+});
+
 test('account manager does not expose internal helper methods', () => {
   const { manager } = createManager([createConfig(0)]);
 

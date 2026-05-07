@@ -5,12 +5,15 @@ const path = require('node:path');
 
 const {
   buildConfigSnapshotRequest,
+  buildRequestUrl,
   buildHelloTestRequest,
   buildJsonRequestOptions,
   formatResponsesModelAliasesInput,
   parseResponsesModelAliasesInput,
   parseResponsesApiResponse,
+  extractErrorMessage,
   getPreferredApiKey,
+  buildHelloTestHeaders,
   getConfigGuideContent,
   getConfigIdentityColumnLabel,
   getConfigIdentityValue,
@@ -27,6 +30,23 @@ test('config admin hides the responses settings module', () => {
   assert.match(section, /Responses 设置/);
   assert.match(section, /这里可以配置 `\/v1\/responses` 的模型别名映射/);
   assert.match(section, /saveResponsesSettingsButton/);
+});
+
+test('config admin exposes manual runtime config activation controls', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
+
+  assert.match(html, /data-action="activate"/);
+  assert.match(html, /\/admin\/api\/configs\/\$\{index\}\/activate/);
+  assert.match(html, /当前账号已临时切换/);
+});
+
+test('config admin keeps the upstream config column compact after adding activation controls', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
+
+  assert.match(html, /min-width:\s*1040px;/);
+  assert.match(html, /\.account-id-col,\s*\.account-id-cell\s*\{\s*width:\s*240px;\s*min-width:\s*240px;/);
+  assert.match(html, /\.account-id-cell\s*\{\s*white-space:\s*normal;\s*word-break:\s*break-word;\s*overflow-wrap:\s*anywhere;/);
+  assert.match(html, /\.action-cell\s*\{\s*width:\s*150px;\s*white-space:\s*nowrap;/);
 });
 
 test('buildConfigSnapshotRequest uses GET when only loading the latest snapshot', () => {
@@ -51,16 +71,29 @@ test('buildConfigSnapshotRequest uses POST refresh endpoint when forcing a full 
   );
 });
 
-test('buildHelloTestRequest uses the configured Claude Code model and fixed hello input', () => {
-  const requestBody = buildHelloTestRequest({
-    claude_code: {
-      model: 'gpt-5-mini',
-    },
-  });
+test('buildRequestUrl only appends admin auth token to admin endpoints', () => {
+  assert.equal(
+    buildRequestUrl('/admin/api/configs', {
+      adminAuthToken: 'auth-secret',
+      origin: 'http://localhost:3009',
+    }),
+    '/admin/api/configs?auth_token=auth-secret',
+  );
+  assert.equal(
+    buildRequestUrl('/v1/responses', {
+      adminAuthToken: 'auth-secret',
+      origin: 'http://localhost:3009',
+    }),
+    '/v1/responses',
+  );
+});
+
+test('buildHelloTestRequest matches the Codex CLI responses probe shape', () => {
+  const requestBody = buildHelloTestRequest({});
 
   assert.deepEqual(requestBody, {
-    model: 'gpt-5-mini',
-    stream: true,
+    model: 'gpt-5.5',
+    instructions: '',
     input: [
       {
         type: 'message',
@@ -73,11 +106,22 @@ test('buildHelloTestRequest uses the configured Claude Code model and fixed hell
         ],
       },
     ],
+    tools: [],
+    tool_choice: 'auto',
+    parallel_tool_calls: false,
+    store: false,
+    stream: true,
+    include: [],
   });
 });
 
-test('buildHelloTestRequest falls back to gpt-5.4 when no Claude Code model is configured', () => {
-  assert.equal(buildHelloTestRequest({}).model, 'gpt-5.4');
+test('buildHelloTestHeaders matches the Codex CLI probe headers', () => {
+  assert.deepEqual(buildHelloTestHeaders('session-123'), {
+    originator: 'codex_cli_rs',
+    version: '1.0.1',
+    session_id: 'session-123',
+    'x-client-request-id': 'session-123',
+  });
 });
 
 test('formatResponsesModelAliasesInput serializes configured responses aliases', () => {
@@ -132,6 +176,12 @@ test('getConfigGuideContent always includes token and apikey examples', () => {
   assert.match(guide.rawJsonPlaceholder, /"apikey": "sk-xxx"/);
   assert.match(guide.rawJsonPlaceholder, /"base_url": "https:\/\/api\.example\.com\/v1"/);
   assert.equal(guide.steps.some(step => /第三方 API/.test(step.description)), true);
+
+  const apiKeyStep = guide.steps.find(step => step.title === '获取 AuthSession 或 API Key');
+  assert.match(apiKeyStep.example, /"type": "apikey"/);
+  assert.match(apiKeyStep.example, /"base_url": "https:\/\/api\.example\.com\/v1"/);
+  assert.match(apiKeyStep.example, /"apikey": "sk-xxx"/);
+  assert.match(apiKeyStep.example, /"description": "third-party provider"/);
 });
 
 test('getConfigIdentityColumnLabel uses upstream config when any apikey item exists', () => {
@@ -325,4 +375,17 @@ test('parseResponsesApiResponse detects event-stream bodies even when the conten
       output_text: 'Hello!',
     },
   );
+});
+
+test('extractErrorMessage prefers nested upstream error messages', () => {
+  assert.equal(
+    extractErrorMessage({
+      error: {
+        message: '[trace_id: abc] Invalid param: invalid response id',
+      },
+    }, 'HTTP 400'),
+    '[trace_id: abc] Invalid param: invalid response id',
+  );
+  assert.equal(extractErrorMessage({ error: 'plain error' }, 'HTTP 400'), 'plain error');
+  assert.equal(extractErrorMessage({}, 'HTTP 400'), 'HTTP 400');
 });

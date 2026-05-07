@@ -689,6 +689,23 @@ async function refreshConfigAdminResponse(options = {}) {
     return buildResponse();
 }
 
+async function activateConfigAdminResponse(index, options = {}) {
+    const manager = options.accountManager || accountManager;
+    const buildResponse = options.buildResponse || buildConfigAdminResponse;
+
+    if (!manager || typeof manager.activateConfig !== 'function') {
+        throw new ConfigEditorError('账号管理器未初始化');
+    }
+
+    try {
+        manager.activateConfig(index, 'admin_manual_activate');
+    } catch (err) {
+        throw new ConfigEditorError(err.message);
+    }
+
+    return buildResponse();
+}
+
 function parseConfigIndex(value) {
     const index = Number(value);
 
@@ -1275,6 +1292,19 @@ app.post('/admin/api/configs/refresh', async (req, res) => {
     }
 });
 
+app.post('/admin/api/configs/:index/activate', async (req, res) => {
+    try {
+        const targetIndex = parseConfigIndex(req.params.index);
+        res.json(await activateConfigAdminResponse(targetIndex));
+    } catch (err) {
+        const statusCode = err instanceof ConfigEditorError ? 400 : 500;
+        res.status(statusCode).json({
+            error: statusCode === 400 ? '账号切换失败' : '配置更新失败',
+            details: err.message
+        });
+    }
+});
+
 app.post('/admin/api/configs', async (req, res) => {
     try {
         const parsed = readParsedConfigFile(CONFIG_FILE);
@@ -1499,6 +1529,7 @@ module.exports = {
     LOCAL_ONLY_HEADER_PREFIXES,
     getGatewayStatusCode,
     isResponsesFailoverInspectionCandidate,
+    activateConfigAdminResponse,
     refreshConfigAdminResponse,
     startServer
 };
