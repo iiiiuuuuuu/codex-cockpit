@@ -260,7 +260,15 @@ function createAccountManager(options) {
   }
 
   function getConfigPriority(config) {
-    return config && config.type === 'token' ? 0 : 1;
+    if (config && config.type === 'token') {
+      return 0;
+    }
+
+    if (config && config.type === 'apikey') {
+      return 1;
+    }
+
+    return 2;
   }
 
   function findHighestPriorityAvailableConfigIndex(predicate = () => true) {
@@ -333,13 +341,13 @@ function createAccountManager(options) {
   /**
    * 保证活动账号可用，仅当当前账号不可用时才切换。
    */
-  function ensureActiveConfig(reason = 'select') {
+  function ensureActiveConfig(reason = 'select', predicate = () => true) {
     if (configs.length === 0) {
       return null;
     }
 
     const currentConfig = configs[activeConfigIndex] || null;
-    const priorityIndex = findHighestPriorityAvailableConfigIndex();
+    const priorityIndex = findHighestPriorityAvailableConfigIndex(predicate);
     if (priorityIndex !== -1) {
       const nextConfig = configs[priorityIndex];
       if (priorityIndex !== activeConfigIndex) {
@@ -352,12 +360,12 @@ function createAccountManager(options) {
 
       return nextConfig;
     }
-    if (currentConfig) {
+    if (currentConfig && predicate(currentConfig)) {
       warn(`没有可用账号，继续使用当前账号 ${getAccountLabel(currentConfig)} (${reason})`);
       return currentConfig;
     }
 
-    throw new Error('没有可用账号配置');
+    return null;
   }
 
   /**

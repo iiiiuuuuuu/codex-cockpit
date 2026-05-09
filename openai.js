@@ -24,7 +24,8 @@ const {
     resolveResponsesOptions,
     createRuntimeConfigs,
     buildAuthHeadersForConfig,
-    shouldUseQuotaMonitoring
+    shouldUseQuotaMonitoring,
+    configSupportsCapability
 } = require('./app/openai-config');
 const {
     ConfigEditorError,
@@ -519,10 +520,11 @@ async function inspectResponsesUpstreamForFailover(response, statusCode, rawHead
 function createClaudeMessagesRequestHandler() {
     return createClaudeMessagesHandler({
         getConfig: () => {
-            const config = accountManager.ensureActiveConfig('claude_request');
+            const config = accountManager.ensureActiveConfig('claude_request', item => configSupportsCapability(item, 'claude')) ||
+                accountManager.ensureActiveConfig('claude_request', item => item.type === 'token');
 
-            if (!config || config.type !== 'token') {
-                throw new Error(`当前没有可用 token 配置，请先访问 ${buildAdminPath()} 添加 Codex token 账号`);
+            if (!config) {
+                throw new Error(`当前没有可用 support 包含 claude 的 apikey 或 token 配置，请先访问 ${buildAdminPath()} 添加账号`);
             }
 
             return config;
@@ -1107,7 +1109,9 @@ function proxyRequest(req, res, config, body, originalUrl, options = {}) {
 
 function createHandler(proxyPath = '') {
     return function handler(req, res) {
-        const config = accountManager.getActiveConfig();
+        const isOpenAiConfig = item => item.type === 'token' || configSupportsCapability(item, 'gpt');
+        const config = accountManager.getActiveConfig(isOpenAiConfig) ||
+            accountManager.ensureActiveConfig('proxy_request', isOpenAiConfig);
         if (!config) {
             return createMissingConfigResponse(res);
         }
@@ -1422,8 +1426,7 @@ app.get('/health', requireConfiguredApiKeys, (req, res) => {
     });
 });
 
-// Claude Messages 兼容接口
-app.post('/claude/v1/messages', requireConfiguredApiKeys, (req, res) => {
+app.post('/v1/messages', requireConfiguredApiKeys, (req, res) => {
     if (!accountManager.getActiveConfig()) {
         return createMissingConfigResponse(res);
     }
@@ -1457,7 +1460,7 @@ async function startServer() {
         log('='.repeat(70));
         log(`配置管理: ${localBaseUrl}${buildAdminPath()}`);
         log(`OpenAI 代理: ${localBaseUrl}/v1`);
-        log(`Claude 代理: ${localBaseUrl}/claude`);
+        log(`Claude Messages 代理: ${localBaseUrl}/v1/messages`);
         log('='.repeat(70));
 
         void (async () => {
@@ -1487,8 +1490,8 @@ async function startServer() {
             }
             log('');
             log('路由规则:');
-            log('  - /claude/v1/messages -> token 配置项 /backend-api/codex/responses (Claude compatibility)');
-            log('  - /v1/* -> token 配置项会重写到 /backend-api/codex/*；apikey 配置项会直连对应 base_url');
+            log('  - /v1/messages -> 优先使用 support 包含 claude 的 apikey 原样转发；无可用 claude apikey 时使用 token -> /backend-api/codex/responses (Claude compatibility)');
+            log('  - /v1/* -> token 配置项会重写到 /backend-api/codex/*；support 包含 gpt 的 apikey 配置项会直连对应 base_url');
             log('  - /wham/* -> token 配置项会重写到 /backend-api/wham/*；apikey 配置项会直连对应 base_url');
         })().catch(err => {
             error('初始化账号信息失败:', err.message);

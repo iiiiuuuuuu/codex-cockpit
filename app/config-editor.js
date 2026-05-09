@@ -3,6 +3,7 @@ const {
     parseOpenAiConfigFile,
     createRuntimeConfigs,
     getConfigItemType,
+    normalizeApiKeySupport,
 } = require('./openai-config');
 
 class ConfigEditorError extends Error {}
@@ -62,7 +63,7 @@ function normalizeResponsesModelAliases(value) {
 
 function getEditableFields(type) {
     if (type === 'apikey') {
-        return ['type', 'apikey', 'base_url', 'description'];
+        return ['type', 'apikey', 'base_url', 'description', 'support'];
     }
 
     if (type === 'token') {
@@ -113,6 +114,10 @@ function normalizeConfigItem(item, existingItem = {}) {
     const type = getConfigItemType(nextItem);
 
     for (const field of getEditableFields(type)) {
+        if (field === 'support') {
+            continue;
+        }
+
         nextItem[field] = normalizeString(item[field]);
     }
 
@@ -123,6 +128,9 @@ function normalizeConfigItem(item, existingItem = {}) {
     if (type === 'apikey') {
         nextItem.type = 'apikey';
         nextItem.base_url = nextItem.base_url.replace(/\/+$/, '');
+        if (Object.prototype.hasOwnProperty.call(item, 'support')) {
+            nextItem.support = normalizeApiKeySupport(item.support);
+        }
     }
 
     return nextItem;

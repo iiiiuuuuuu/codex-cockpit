@@ -14,9 +14,10 @@ function getRuntimeConfigIdentity(config) {
 
     if (config.type === 'apikey') {
         return [
-            'apikey',
+            config.type,
             config.baseUrl || '',
-            config.apiKey || ''
+            config.apiKey || '',
+            Array.isArray(config.support) ? config.support.join(',') : ''
         ].join(':');
     }
 

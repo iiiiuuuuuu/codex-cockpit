@@ -194,13 +194,22 @@
         },
         {
           title: '获取 AuthSession 或 API Key',
-          description: 'Codex token 可粘贴 AuthSession JSON；第三方 API 可粘贴 apikey 配置项 JSON。',
-          example: JSON.stringify({
-            type: 'apikey',
-            base_url: 'https://api.example.com/v1',
-            apikey: 'sk-xxx',
-            description: 'third-party provider',
-          }, null, 2),
+          description: 'Codex token 可粘贴 AuthSession JSON；第三方 API 可粘贴 apikey 配置项 JSON。apikey 默认支持 gpt；需要 Claude Messages 时加 support:["claude"]。',
+          example: [
+            JSON.stringify({
+              type: 'apikey',
+              base_url: 'https://api.example.com/v1',
+              apikey: 'sk-xxx',
+              description: 'third-party provider',
+            }, null, 2),
+            JSON.stringify({
+              type: 'apikey',
+              base_url: 'https://claude.example.com/v1',
+              apikey: 'sk-xxx',
+              support: ['claude'],
+              description: 'claude messages provider',
+            }, null, 2),
+          ].join('\n\n// 或\n\n'),
           actionText: '打开 AuthSession 页面',
           actionHref: 'https://chatgpt.com/api/auth/session',
         },
@@ -221,6 +230,13 @@
           apikey: 'sk-xxx',
           description: 'third-party provider',
         }, null, 2),
+        JSON.stringify({
+          type: 'apikey',
+          base_url: 'https://claude.example.com/v1',
+          apikey: 'sk-xxx',
+          support: ['claude'],
+          description: 'claude messages provider',
+        }, null, 2),
       ].join('\n\n// 或\n\n'),
     };
   }
@@ -239,9 +255,8 @@
 
   function getConfigIdentityValue(snapshot, item) {
     const configItem = item && item.item ? item.item : item;
-    const itemType = configItem && configItem.type === 'apikey' ? 'apikey' : 'token';
 
-    if (itemType === 'apikey') {
+    if (configItem && configItem.type === 'apikey') {
       const baseUrl = typeof configItem.base_url === 'string' && configItem.base_url.trim()
         ? configItem.base_url.trim()
         : '-';

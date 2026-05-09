@@ -121,6 +121,7 @@ test('buildImportedConfigItem keeps item-level apikey credentials', () => {
     apikey: '  sk-third-party  ',
     base_url: ' https://api.example.com/v1/ ',
     description: ' third party ',
+    support: [' gpt ', 'claude', 'gpt'],
   });
 
   assert.deepEqual(imported, {
@@ -128,6 +129,7 @@ test('buildImportedConfigItem keeps item-level apikey credentials', () => {
     apikey: 'sk-third-party',
     base_url: 'https://api.example.com/v1',
     description: 'third party',
+    support: ['gpt', 'claude'],
   });
 });
 

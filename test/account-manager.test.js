@@ -203,6 +203,25 @@ test('ensureActiveConfig can switch away after a manual activation', () => {
   assert.equal(manager.getActiveConfig(), configs[0]);
 });
 
+test('ensureActiveConfig can prefer configs matching a route-specific predicate', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://claude.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-claude',
+      support: ['claude'],
+    }),
+  ];
+  const { manager } = createManager(configs);
+
+  const selected = manager.ensureActiveConfig('claude_request', config => config.type === 'apikey' && config.support.includes('claude'));
+
+  assert.equal(selected, configs[1]);
+  assert.equal(manager.getActiveConfig(), configs[1]);
+});
+
 test('account manager does not expose internal helper methods', () => {
   const { manager } = createManager([createConfig(0)]);
 

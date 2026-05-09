@@ -3,6 +3,7 @@ const CODEX_API_BASE_PATH = '/backend-api/codex';
 const DEFAULT_CLAUDE_CODE_MODEL = 'gpt-5.4';
 const DEFAULT_CLAUDE_CODE_REASONING_EFFORT = 'high';
 const SUPPORTED_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
+const SUPPORTED_APIKEY_CAPABILITIES = new Set(['gpt', 'claude']);
 
 function isPlainObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -59,6 +60,42 @@ function getConfigItemType(config) {
     return type || 'token';
 }
 
+function normalizeApiKeySupport(value) {
+    if (typeof value === 'undefined' || value === null) {
+        return ['gpt'];
+    }
+
+    if (!Array.isArray(value)) {
+        throw new Error('apikey support 必须是字符串数组');
+    }
+
+    const support = [];
+    for (const item of value) {
+        const capability = normalizeString(item).toLowerCase();
+        if (!SUPPORTED_APIKEY_CAPABILITIES.has(capability)) {
+            throw new Error('apikey support 仅支持 gpt 或 claude');
+        }
+
+        if (!support.includes(capability)) {
+            support.push(capability);
+        }
+    }
+
+    if (support.length === 0) {
+        throw new Error('apikey support 至少需要包含 gpt 或 claude');
+    }
+
+    return support;
+}
+
+function configSupportsCapability(config, capability) {
+    if (!config || config.type !== 'apikey') {
+        return false;
+    }
+
+    return normalizeApiKeySupport(config.support).includes(capability);
+}
+
 function parseOpenAiConfigFile(raw) {
     const parsed = JSON.parse(raw);
 
@@ -78,6 +115,10 @@ function parseOpenAiConfigFile(raw) {
         const configType = getConfigItemType(config);
         if (configType !== 'token' && configType !== 'apikey') {
             throw new Error('配置项 type 仅支持 token 或 apikey');
+        }
+
+        if (configType === 'apikey') {
+            normalizeApiKeySupport(config.support);
         }
     }
 
@@ -203,6 +244,7 @@ function createApiKeyRuntimeConfig(config, index) {
         baseUrl,
         apiBasePath: '',
         apiKey: apikey,
+        support: normalizeApiKeySupport(config.support),
         description: config.description || `APIKey 配置 #${index + 1}`,
         runtime: createDefaultApiKeyRuntime()
     };
@@ -210,7 +252,9 @@ function createApiKeyRuntimeConfig(config, index) {
 
 function createRuntimeConfigs(parsed) {
     return parsed.configs.map((config, index) => {
-        if (getConfigItemType(config) === 'apikey') {
+        const configType = getConfigItemType(config);
+
+        if (configType === 'apikey') {
             return createApiKeyRuntimeConfig(config, index);
         }
 
@@ -247,6 +291,8 @@ module.exports = {
     createTokenRuntimeConfig,
     createApiKeyRuntimeConfig,
     getConfigItemType,
+    normalizeApiKeySupport,
+    configSupportsCapability,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring
 };

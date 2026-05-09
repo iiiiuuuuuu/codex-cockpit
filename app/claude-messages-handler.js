@@ -35,6 +35,13 @@ function resolveResponsesApiPath(config) {
     return DEFAULT_RESPONSES_API_PATH;
 }
 
+function configSupportsClaudeMessages(config) {
+    return config &&
+        config.type === 'apikey' &&
+        Array.isArray(config.support) &&
+        config.support.includes('claude');
+}
+
 function buildIncomingUrl(req, proxyPath = '') {
     const combinedUrl = `${req.baseUrl || ''}${req.url || ''}`;
     if (!proxyPath || !combinedUrl.startsWith(proxyPath)) {
@@ -56,6 +63,26 @@ function buildUpstreamHeaders(reqHeaders, config, contentLength, isStream, clien
 
     if (reqHeaders['accept-language']) {
         headers['accept-language'] = reqHeaders['accept-language'];
+    }
+
+    if (typeof contentLength === 'number') {
+        headers['content-length'] = String(contentLength);
+    }
+
+    return headers;
+}
+
+function buildClaudeApiKeyUpstreamHeaders(reqHeaders, config, contentLength, isStream) {
+    const headers = {
+        authorization: `Bearer ${config.apiKey}`,
+        'content-type': 'application/json',
+        accept: isStream ? 'text/event-stream' : 'application/json'
+    };
+
+    for (const headerName of ['accept-language', 'anthropic-version', 'anthropic-beta']) {
+        if (reqHeaders[headerName]) {
+            headers[headerName] = reqHeaders[headerName];
+        }
     }
 
     if (typeof contentLength === 'number') {
@@ -91,6 +118,26 @@ function sendJsonError(res, status, payload) {
 }
 
 function sendUpstreamError(res, status, contentType, bodyText) {
+    const normalizedContentType = String(contentType || '').toLowerCase();
+
+    if (normalizedContentType.includes('application/json')) {
+        try {
+            res.status(status).json(JSON.parse(bodyText));
+            return;
+        } catch (err) {
+            // Fall through to plain text.
+        }
+    }
+
+    res.status(status);
+    if (contentType) {
+        res.setHeader('content-type', contentType);
+    }
+    res.send(bodyText);
+}
+
+function sendBufferedUpstreamResponse(res, status, contentType, bodyBuffer) {
+    const bodyText = bodyBuffer.toString('utf8');
     const normalizedContentType = String(contentType || '').toLowerCase();
 
     if (normalizedContentType.includes('application/json')) {
@@ -315,6 +362,135 @@ function processResponsesSseText(state, text, onPayload, onError, isFinal = fals
     }
 }
 
+function forwardClaudeApiKeyMessagesRequest({
+    req,
+    res,
+    config,
+    incomingUrl,
+    rawBody,
+    isClientStream,
+    accessLogEnabled,
+    logRequestSnapshot,
+    createUpstreamRequestImpl,
+    upstreamRequestTimeoutMs,
+    error
+}) {
+    const upstreamHeaders = buildClaudeApiKeyUpstreamHeaders(req.headers, config, rawBody.length, isClientStream);
+    const targetUrl = new URL(incomingUrl, config.baseUrl).toString();
+
+    if (accessLogEnabled && typeof logRequestSnapshot === 'function') {
+        logRequestSnapshot({
+            method: req.method,
+            originalUrl: incomingUrl,
+            rewrittenUrl: incomingUrl,
+            config: {
+                index: config.index,
+                description: `#${config.index + 1} ${config.description}`,
+                baseUrl: config.baseUrl
+            },
+            headers: upstreamHeaders,
+            bodyBuffer: rawBody
+        });
+    }
+
+    const upstream = createUpstreamRequestImpl({
+        method: 'POST',
+        targetUrl,
+        headers: upstreamHeaders,
+        body: rawBody,
+        timeoutMs: upstreamRequestTimeoutMs
+    });
+    let responseFinished = false;
+    let requestClosed = false;
+
+    upstream.responsePromise.then(response => {
+        const statusCode = Number(response.statusCode || 502);
+        const upstreamHeaders = normalizeUpstreamHeaders(response.headers);
+        const contentType = upstreamHeaders['content-type'] || '';
+
+        if (isClientStream) {
+            res.status(statusCode);
+            for (const [name, value] of Object.entries(upstreamHeaders)) {
+                res.setHeader(name, value);
+            }
+
+            response.on('data', chunk => {
+                res.write(chunk);
+            });
+            response.on('end', () => {
+                responseFinished = true;
+                if (!res.writableEnded) {
+                    res.end();
+                }
+            });
+            response.on('error', err => {
+                if (requestClosed) {
+                    return;
+                }
+
+                error(`代理请求失败: ${err.message}`);
+                if (!res.headersSent) {
+                    sendJsonError(res, getGatewayStatusCode(err), {
+                        error: 'Bad Gateway',
+                        message: err.message
+                    });
+                } else if (!res.writableEnded) {
+                    res.end();
+                }
+            });
+            return;
+        }
+
+        const responseBodyChunks = [];
+        response.on('data', chunk => {
+            responseBodyChunks.push(chunk);
+        });
+        response.on('end', () => {
+            responseFinished = true;
+            const bodyBuffer = Buffer.concat(responseBodyChunks);
+
+            if (statusCode >= 200 && statusCode < 300) {
+                sendBufferedUpstreamResponse(res, statusCode, contentType, bodyBuffer);
+                return;
+            }
+
+            sendUpstreamError(res, statusCode, contentType, bodyBuffer.toString('utf8'));
+        });
+        response.on('error', err => {
+            if (requestClosed) {
+                return;
+            }
+
+            error(`代理请求失败: ${err.message}`);
+            sendJsonError(res, getGatewayStatusCode(err), {
+                error: 'Bad Gateway',
+                message: err.message
+            });
+        });
+    }).catch(err => {
+        if (requestClosed) {
+            return;
+        }
+
+        const message = err.message || 'upstream request failed';
+        error(`代理请求失败: ${message}`);
+        sendJsonError(res, getGatewayStatusCode(err), {
+            error: 'Bad Gateway',
+            message
+        });
+    });
+
+    const closeUpstream = () => {
+        requestClosed = true;
+        if (!responseFinished) {
+            upstream.abort(new Error('client closed request'));
+        }
+    };
+
+    req.on('aborted', closeUpstream);
+    res.on('close', closeUpstream);
+}
+
 function createClaudeMessagesHandler({
     getConfig,
     accessLogEnabled = false,
@@ -330,12 +506,12 @@ function createClaudeMessagesHandler({
     handleRetryableUpstreamError = null
 }) {
     return async function handleMessagesRequest(req, res) {
-        const incomingUrl = buildIncomingUrl(req, '/claude');
+        const incomingUrl = buildIncomingUrl(req);
 
         if (req.method !== 'POST') {
             return sendJsonError(res, 405, {
                 error: 'Method Not Allowed',
-                message: 'Only POST is supported for /claude/v1/messages'
+                message: 'Only POST is supported for /v1/messages'
             });
         }
 
@@ -357,10 +533,10 @@ function createClaudeMessagesHandler({
             });
         }
 
-        if (config.type === 'apikey') {
+        if (config.type === 'apikey' && !configSupportsClaudeMessages(config)) {
             return sendJsonError(res, 400, {
                 error: 'Unsupported Mode',
-                message: '/claude/v1/messages 仅支持 token 配置项，当前 apikey 配置项请改用 /v1 接口或添加 token 配置项'
+                message: '/v1/messages 仅支持 token 或 support 包含 claude 的 apikey 配置项，当前 apikey 配置项请改用 /v1/responses 或添加 support:["claude"]'
             });
         }
 
@@ -369,11 +545,29 @@ function createClaudeMessagesHandler({
         let claudeRequest;
         let responsesRequest;
         let isClientStream = false;
+        let rawBody;
 
         try {
-            const rawBody = await readRequestBody(req);
+            rawBody = await readRequestBody(req);
             claudeRequest = JSON.parse(rawBody.toString('utf8'));
             isClientStream = claudeRequest.stream === true;
+            if (configSupportsClaudeMessages(config)) {
+                forwardClaudeApiKeyMessagesRequest({
+                    req,
+                    res,
+                    config,
+                    incomingUrl,
+                    rawBody,
+                    isClientStream,
+                    accessLogEnabled,
+                    logRequestSnapshot,
+                    createUpstreamRequestImpl,
+                    upstreamRequestTimeoutMs,
+                    error
+                });
+                return;
+            }
+
             responsesRequest = transformClaudeMessagesRequest(claudeRequest, {
                 model: upstreamModel,
                 reasoningEffort,

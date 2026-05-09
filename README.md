@@ -23,7 +23,7 @@ npm start
 管理页还提供了一个“测试请求”按钮，点击按钮请求测试即可，有正常内容返回，就表示airouter已经成功配置
 > **注意：** chatgpt 不要退出登录，退出登录后 token 会失效，建议在无痕窗口登录 GPT 后获取登录态
 
-`configs` 里可以同时放 ChatGPT Codex token 账号和第三方 OpenAI 兼容 API。未写 `type` 的配置项默认是 `token`；第三方 API 配置项写 `type: "apikey"`：
+`configs` 里可以同时放 ChatGPT Codex token 账号和第三方 API。未写 `type` 的配置项默认是 `token`；第三方 API 配置项写 `type: "apikey"`。`apikey` 默认支持 OpenAI 兼容 `/v1/*` 链路，也就是 `support: ["gpt"]`；需要原样转发 Claude Messages API 时，在同一个 `apikey` 配置项里加 `support: ["claude"]`，也可以写成 `["gpt", "claude"]` 同时支持两条链路：
 
 ```json
 [
@@ -37,11 +37,18 @@ npm start
     "base_url": "https://api.example.com/v1",
     "apikey": "sk-xxx",
     "description": "third-party provider"
+  },
+  {
+    "type": "apikey",
+    "base_url": "https://claude.example.com/v1",
+    "apikey": "sk-xxx",
+    "support": ["claude"],
+    "description": "claude messages provider"
   }
 ]
 ```
 
-`base_url` 不要求是 Codex 或 ChatGPT 地址，只要上游提供 OpenAI 兼容的 `/v1/*` 接口即可。调度优先级固定为 token 高于 apikey：每分钟会轮询所有 token 账号；只在所有 token 都不可用时才会使用 apikey；一旦有 token 恢复可用，会优先切回 token。
+`base_url` 不要求是 Codex 或 ChatGPT 地址。`support` 包含 `gpt` 的 `apikey` 用于 OpenAI 兼容的 `/v1/*` 链路；`support` 包含 `claude` 的 `apikey` 用于 `/v1/messages` 链路，并且请求体会原样转发，不做模型转换。`/v1/responses` 不会使用只支持 `claude` 的 `apikey` 配置项。调度优先级固定为 token 高于 apikey：每分钟会轮询所有 token 账号；只在所有 token 都不可用时才会使用 apikey；一旦有 token 恢复可用，会优先切回 token。Messages 链路会优先使用 `support` 包含 `claude` 的 `apikey`，没有可用 Claude apikey 时再使用 token 兼容转换。
 
 ```
 无api_key

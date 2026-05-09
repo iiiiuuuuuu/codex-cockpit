@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 
@@ -46,7 +48,7 @@ function createJsonResponseRecorder() {
 function createClaudeRequest(body) {
   const req = new EventEmitter();
   req.method = 'POST';
-  req.baseUrl = '/claude';
+  req.baseUrl = '';
   req.url = '/v1/messages';
   req.headers = {
     'content-type': 'application/json',
@@ -103,6 +105,13 @@ test('isResponsesFailoverInspectionCandidate inspects upstream auth failures', (
   }), true);
 });
 
+test('server registers Claude messages compatibility on /v1/messages only', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'openai.js'), 'utf8');
+
+  assert.match(source, /app\.post\('\/v1\/messages'/);
+  assert.doesNotMatch(source, /app\.post\('\/claude\/v1\/messages'/);
+});
+
 test('createClaudeMessagesHandler rejects apikey configs with a clear error before contacting upstream', async () => {
   let upstreamCalled = false;
   const handler = createClaudeMessagesHandler({
@@ -121,7 +130,7 @@ test('createClaudeMessagesHandler rejects apikey configs with a clear error befo
 
   const req = new EventEmitter();
   req.method = 'POST';
-  req.baseUrl = '/claude';
+  req.baseUrl = '';
   req.url = '/v1/messages';
   req.headers = {
     'content-type': 'application/json',
@@ -134,9 +143,71 @@ test('createClaudeMessagesHandler rejects apikey configs with a clear error befo
   assert.equal(upstreamCalled, false);
   assert.equal(res.statusCode, 400);
   assert.match(res.payload.error, /Unsupported Mode/);
-  assert.match(res.payload.message, /\/claude\/v1\/messages/);
+  assert.match(res.payload.message, /\/v1\/messages/);
+  assert.doesNotMatch(res.payload.message, /\/claude\/v1\/messages/);
   assert.match(res.payload.message, /apikey/);
   assert.match(res.payload.message, /token/);
+});
+
+test('createClaudeMessagesHandler forwards apikey configs with claude support without responses conversion', async () => {
+  const upstreamRequests = [];
+  const handler = createClaudeMessagesHandler({
+    getConfig: () => ({
+      type: 'apikey',
+      index: 0,
+      description: 'Claude API config',
+      apiKey: 'upstream-claude-key',
+      baseUrl: 'https://claude.example.com/v1',
+      support: ['claude'],
+    }),
+    createUpstreamRequest: request => {
+      upstreamRequests.push(request);
+      return {
+        responsePromise: Promise.resolve(createUpstreamResponse(200, {
+          'content-type': 'application/json',
+        }, JSON.stringify({
+          id: 'msg_1',
+          type: 'message',
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'hello',
+            },
+          ],
+        }))),
+        abort() {},
+      };
+    },
+  });
+
+  const res = createJsonResponseRecorder();
+  const body = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 32,
+    messages: [
+      {
+        role: 'user',
+        content: 'hello',
+      },
+    ],
+  };
+
+  await handler(createClaudeRequest(body), res);
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(upstreamRequests.length, 1);
+  assert.equal(upstreamRequests[0].targetUrl, 'https://claude.example.com/v1/messages');
+  assert.equal(upstreamRequests[0].headers.authorization, 'Bearer upstream-claude-key');
+  assert.equal(upstreamRequests[0].headers['chatgpt-account-id'], undefined);
+  assert.deepEqual(JSON.parse(upstreamRequests[0].body.toString('utf8')), body);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.payload.content, [
+    {
+      type: 'text',
+      text: 'hello',
+    },
+  ]);
 });
 
 test('createClaudeMessagesHandler retries retryable upstream usage-limit errors with the next config', async () => {

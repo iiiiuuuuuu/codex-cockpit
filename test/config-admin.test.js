@@ -166,7 +166,7 @@ test('getPreferredApiKey returns the first configured apikey', () => {
   }), 'router-key');
 });
 
-test('getConfigGuideContent always includes token and apikey examples', () => {
+test('getConfigGuideContent always includes token and apikey support examples', () => {
   const guide = getConfigGuideContent({
     mode: 'token',
   });
@@ -175,6 +175,8 @@ test('getConfigGuideContent always includes token and apikey examples', () => {
   assert.match(guide.rawJsonPlaceholder, /"type": "apikey"/);
   assert.match(guide.rawJsonPlaceholder, /"apikey": "sk-xxx"/);
   assert.match(guide.rawJsonPlaceholder, /"base_url": "https:\/\/api\.example\.com\/v1"/);
+  assert.match(guide.rawJsonPlaceholder, /"support": \[\n    "claude"\n  \]/);
+  assert.match(guide.rawJsonPlaceholder, /"base_url": "https:\/\/claude\.example\.com\/v1"/);
   assert.equal(guide.steps.some(step => /第三方 API/.test(step.description)), true);
 
   const apiKeyStep = guide.steps.find(step => step.title === '获取 AuthSession 或 API Key');
@@ -182,6 +184,7 @@ test('getConfigGuideContent always includes token and apikey examples', () => {
   assert.match(apiKeyStep.example, /"base_url": "https:\/\/api\.example\.com\/v1"/);
   assert.match(apiKeyStep.example, /"apikey": "sk-xxx"/);
   assert.match(apiKeyStep.example, /"description": "third-party provider"/);
+  assert.match(apiKeyStep.example, /"support": \[\n    "claude"\n  \]/);
 });
 
 test('getConfigIdentityColumnLabel uses upstream config when any apikey item exists', () => {
@@ -218,6 +221,20 @@ test('getConfigIdentityValue shows base_url and masks apikey config secrets', ()
       },
     ),
     'https://api.example.com/v1 (sk--...7890)',
+  );
+  assert.equal(
+    getConfigIdentityValue(
+      { mode: 'mixed' },
+      {
+        item: {
+          type: 'apikey',
+          base_url: 'https://claude.example.com/v1',
+          apikey: 'sk-claude123456',
+          support: ['claude'],
+        },
+      },
+    ),
+    'https://claude.example.com/v1 (sk--...3456)',
   );
 });
 

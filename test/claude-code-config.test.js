@@ -158,6 +158,7 @@ test('createRuntimeConfigs supports item-level apikey configs', () => {
         base_url: 'https://api.backup.example/v1',
         apikey: 'sk-2',
         description: 'backup',
+        support: ['gpt', 'claude'],
       },
     ],
   }));
@@ -168,9 +169,54 @@ test('createRuntimeConfigs supports item-level apikey configs', () => {
   assert.equal(runtimeConfigs[0].type, 'apikey');
   assert.equal(runtimeConfigs[0].baseUrl, 'https://api.example.com/v1');
   assert.equal(runtimeConfigs[0].apiKey, 'sk-1');
+  assert.deepEqual(runtimeConfigs[0].support, ['gpt']);
   assert.equal(runtimeConfigs[1].type, 'apikey');
   assert.equal(runtimeConfigs[1].baseUrl, 'https://api.backup.example/v1');
   assert.equal(runtimeConfigs[1].apiKey, 'sk-2');
+  assert.deepEqual(runtimeConfigs[1].support, ['gpt', 'claude']);
+});
+
+test('createRuntimeConfigs supports apikey configs that only support Claude messages', () => {
+  const parsed = parseOpenAiConfigFile(JSON.stringify({
+    configs: [
+      {
+        type: 'apikey',
+        base_url: 'https://claude.example.com/v1/',
+        apikey: 'sk-claude',
+        description: 'claude provider',
+        support: ['claude'],
+      },
+    ],
+  }));
+
+  const runtimeConfigs = createRuntimeConfigs(parsed);
+
+  assert.equal(runtimeConfigs.length, 1);
+  assert.equal(runtimeConfigs[0].type, 'apikey');
+  assert.equal(runtimeConfigs[0].baseUrl, 'https://claude.example.com/v1');
+  assert.equal(runtimeConfigs[0].apiKey, 'sk-claude');
+  assert.equal(runtimeConfigs[0].description, 'claude provider');
+  assert.deepEqual(runtimeConfigs[0].support, ['claude']);
+  assert.equal(runtimeConfigs[0].runtime.reason, 'apikey');
+});
+
+test('parseOpenAiConfigFile rejects unsupported apikey support values', () => {
+  assert.throws(() => {
+    parseOpenAiConfigFile(JSON.stringify({
+      configs: [
+        {
+          type: 'apikey',
+          base_url: 'https://api.example.com/v1',
+          apikey: 'sk-1',
+          support: ['gpt', 'chat'],
+        },
+      ],
+    }));
+  }, err => {
+    assert.equal(err instanceof Error, true);
+    assert.match(err.message, /support 仅支持 gpt 或 claude/);
+    return true;
+  });
 });
 
 test('parseOpenAiConfigFile ignores deprecated top-level type', () => {
