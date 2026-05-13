@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": ["app", "dmg"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
     "resources": ["resources/airouter"],
     "externalBin": ["binaries/node"],
     "macOS": {
