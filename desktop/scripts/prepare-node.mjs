@@ -74,6 +74,23 @@ async function download(url, destination) {
   await fs.writeFile(destination, bytes);
 }
 
+function extractArchive(archive, destination) {
+  if (platform === 'win32' && platformTarget.archiveExt === 'zip') {
+    return spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      '& { param($Archive, $Destination) Expand-Archive -LiteralPath $Archive -DestinationPath $Destination -Force }',
+      archive,
+      destination
+    ], { stdio: 'inherit' });
+  }
+
+  const tarArgs = platformTarget.archiveExt === 'zip'
+    ? ['-xf', archive, '-C', destination]
+    : ['-xzf', archive, '-C', destination];
+  return spawnSync('tar', tarArgs, { stdio: 'inherit' });
+}
+
 const nodePlatformName = platform === 'win32' ? 'win' : platform;
 const archiveName = `node-${nodeVersion}-${nodePlatformName}-${target.archiveArch}.${platformTarget.archiveExt}`;
 const cacheDir = path.join(os.homedir(), '.cache', 'airouter-desktop');
@@ -93,10 +110,7 @@ if (!(await exists(sourceNode))) {
     await download(url, archivePath);
   }
 
-  const tarArgs = platformTarget.archiveExt === 'zip'
-    ? ['-xf', archivePath, '-C', cacheDir]
-    : ['-xzf', archivePath, '-C', cacheDir];
-  const result = spawnSync('tar', tarArgs, { stdio: 'inherit' });
+  const result = extractArchive(archivePath, cacheDir);
   if (result.status !== 0) {
     throw new Error(`Failed to extract ${archivePath}`);
   }
