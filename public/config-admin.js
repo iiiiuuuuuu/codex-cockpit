@@ -183,61 +183,113 @@
     return `${text.slice(0, 3)}-...${text.slice(-4)}`;
   }
 
+  function normalizeText(value) {
+    return typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+  }
+
+  function normalizeBaseUrl(value) {
+    return normalizeText(value).replace(/\/+$/, '');
+  }
+
+  function normalizeSupport(values) {
+    const list = Array.isArray(values) ? values : [];
+    const normalized = [];
+
+    for (const value of list) {
+      const item = normalizeText(value).toLowerCase();
+      if ((item === 'gpt' || item === 'claude') && !normalized.includes(item)) {
+        normalized.push(item);
+      }
+    }
+
+    return normalized.length ? normalized : ['gpt'];
+  }
+
+  function parseJsonObject(rawText, label) {
+    let parsed;
+    try {
+      parsed = JSON.parse(String(rawText || '').trim());
+    } catch (error) {
+      throw new Error(`${label} 解析失败: ${error.message}`);
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error(`${label} 必须是 JSON 对象`);
+    }
+
+    return parsed;
+  }
+
+  function buildConfigItemFromForm(values) {
+    const formValues = values && typeof values === 'object' ? values : {};
+    const mode = normalizeText(formValues.mode || 'token').toLowerCase();
+
+    if (mode === 'token') {
+      return parseJsonObject(formValues.tokenRawJson, 'AuthSession JSON');
+    }
+
+    if (mode !== 'apikey') {
+      throw new Error('请选择 token 或 apikey 模式');
+    }
+
+    const apikey = normalizeText(formValues.apiKey);
+    const baseUrl = normalizeBaseUrl(formValues.baseUrl);
+
+    if (!apikey) {
+      throw new Error('apikey 模式下请填写 API Key');
+    }
+
+    if (!baseUrl) {
+      throw new Error('apikey 模式下请填写 Base URL');
+    }
+
+    return {
+      type: 'apikey',
+      apikey,
+      base_url: baseUrl,
+      description: normalizeText(formValues.description),
+      support: normalizeSupport(formValues.support),
+    };
+  }
+
   function getConfigGuideContent(snapshot) {
     return {
       steps: [
         {
-          title: '登录 ChatGPT',
-          description: '先登录 ChatGPT，确保账号已经在线。',
+          title: '选择模式',
+          description: 'token 模式适合 ChatGPT Codex 登录态；apikey 模式适合 OpenAI 兼容或 Claude Messages 上游。先在右侧选一种模式。',
           actionText: '打开 ChatGPT',
           actionHref: 'https://chatgpt.com/',
         },
         {
-          title: '获取 AuthSession 或 API Key',
-          description: 'Codex token 可粘贴 AuthSession JSON；第三方 API 可粘贴 apikey 配置项 JSON。apikey 默认支持 gpt；需要 Claude Messages 时加 support:["claude"]。',
-          example: [
-            JSON.stringify({
-              type: 'apikey',
-              base_url: 'https://api.example.com/v1',
-              apikey: 'sk-xxx',
-              description: 'third-party provider',
-            }, null, 2),
-            JSON.stringify({
-              type: 'apikey',
-              base_url: 'https://claude.example.com/v1',
-              apikey: 'sk-xxx',
-              support: ['claude'],
-              description: 'claude messages provider',
-            }, null, 2),
-          ].join('\n\n// 或\n\n'),
+          title: 'Token 模式',
+          description: '登录 ChatGPT 后打开 AuthSession 页面，把返回的 AuthSession JSON 粘贴到文本框里。',
+          example: JSON.stringify({
+            user: {
+              email: 'user@example.com',
+            },
+            account: {
+              id: 'account-id',
+            },
+            accessToken: '...',
+          }, null, 2),
           actionText: '打开 AuthSession 页面',
           actionHref: 'https://chatgpt.com/api/auth/session',
         },
+        {
+          title: 'API Key 模式',
+          description: '直接用输入框填写 Base URL、API Key 和备注，再勾选这个上游支持 GPT、Claude 或两者。普通 OpenAI 兼容服务通常选 GPT；原样转发 Claude Messages API 时选 Claude。',
+        },
       ],
-      rawJsonPlaceholder: [
-        JSON.stringify({
-          user: {
-            email: 'user@example.com',
-          },
-          account: {
-            id: 'account-id',
-          },
-          accessToken: '...',
-        }, null, 2),
-        JSON.stringify({
-          type: 'apikey',
-          base_url: 'https://api.example.com/v1',
-          apikey: 'sk-xxx',
-          description: 'third-party provider',
-        }, null, 2),
-        JSON.stringify({
-          type: 'apikey',
-          base_url: 'https://claude.example.com/v1',
-          apikey: 'sk-xxx',
-          support: ['claude'],
-          description: 'claude messages provider',
-        }, null, 2),
-      ].join('\n\n// 或\n\n'),
+      rawJsonPlaceholder: JSON.stringify({
+        user: {
+          email: 'user@example.com',
+        },
+        account: {
+          id: 'account-id',
+        },
+        accessToken: '...',
+      }, null, 2),
     };
   }
 
@@ -268,6 +320,126 @@
     const value = configItem && configItem.account_id;
 
     return typeof value === 'string' && value.trim() ? value.trim() : '-';
+  }
+
+  function getRuntimeSummaryText(runtime) {
+    return typeof runtime?.runtime_summary === 'string' ? runtime.runtime_summary : '';
+  }
+
+  function hasRuntimeProblem(runtime) {
+    const text = getRuntimeSummaryText(runtime).toLowerCase();
+
+    return text.includes('可用=否')
+      || text.includes('timeout')
+      || text.includes('401')
+      || text.includes('quota')
+      || text.includes('失败')
+      || text.includes('错误=');
+  }
+
+  function getActiveConfigLabel(snapshot) {
+    const configs = Array.isArray(snapshot && snapshot.configs) ? snapshot.configs : [];
+    const active = configs.find(item => item && item.is_active);
+
+    return active && Number.isInteger(active.index) ? `配置 #${active.index + 1}` : '自动调度';
+  }
+
+  function extractRuntimeStatusTags(runtime) {
+    const text = getRuntimeSummaryText(runtime);
+
+    if (!text) {
+      return [
+        { label: '暂无运行态', tone: 'muted' },
+      ];
+    }
+
+    const tags = [];
+    const lower = text.toLowerCase();
+
+    if (text.includes('可用=是')) {
+      tags.push({ label: '可用', tone: 'ok' });
+    } else if (text.includes('可用=否')) {
+      tags.push({ label: '不可用', tone: 'danger' });
+    }
+
+    const quotaMatch = text.match(/额度=([^|]+)/);
+    if (quotaMatch && quotaMatch[1]) {
+      const value = quotaMatch[1].trim();
+      tags.push({
+        label: `额度 ${value}`,
+        tone: value === 'unknown' ? 'warn' : 'ok',
+      });
+    }
+
+    const refreshMatch = text.match(/刷新时间=([^|]+)/);
+    if (refreshMatch && refreshMatch[1]) {
+      const value = refreshMatch[1].trim();
+      tags.push({
+        label: `刷新 ${value}`,
+        tone: value === 'unknown' ? 'warn' : 'muted',
+      });
+    }
+
+    if (lower.includes('timeout')) {
+      tags.push({ label: 'timeout', tone: 'danger' });
+    } else if (lower.includes('401')) {
+      tags.push({ label: '401', tone: 'danger' });
+    } else if (text.includes('失败') || text.includes('错误=')) {
+      tags.push({ label: '异常', tone: 'danger' });
+    }
+
+    return tags.length ? tags.slice(0, 4) : [
+      { label: '已读取', tone: 'muted' },
+    ];
+  }
+
+  function buildAdminStatusSummary(snapshot) {
+    const apikeys = Array.isArray(snapshot && snapshot.apikeys) ? snapshot.apikeys : [];
+    const configs = Array.isArray(snapshot && snapshot.configs) ? snapshot.configs : [];
+    const problemCount = configs.filter(item => hasRuntimeProblem(item && item.runtime)).length;
+    const problemTags = [];
+    const runtimeText = configs
+      .map(item => getRuntimeSummaryText(item && item.runtime).toLowerCase())
+      .join(' ');
+
+    if (runtimeText.includes('timeout')) {
+      problemTags.push('timeout');
+    }
+
+    if (runtimeText.includes('401')) {
+      problemTags.push('401');
+    }
+
+    if (runtimeText.includes('quota') || runtimeText.includes('额度')) {
+      problemTags.push('额度');
+    }
+
+    return [
+      {
+        label: '入口 apikey',
+        value: apikeys.length ? `${apikeys.length} 个` : '未配置',
+        tone: apikeys.length ? 'ok' : 'warn',
+        detail: apikeys.length ? '请求会校验入口 apikey' : '请求不会校验入口 apikey',
+      },
+      {
+        label: '上游配置',
+        value: `${configs.length} 个`,
+        tone: configs.length ? 'ok' : 'warn',
+        detail: 'Token 与 API Key 配置总数',
+      },
+      {
+        label: '当前激活',
+        value: getActiveConfigLabel(snapshot),
+        tone: configs.some(item => item && item.is_active) ? 'active' : 'muted',
+        detail: '手动切换会临时覆盖自动调度',
+      },
+      {
+        label: '健康状态',
+        value: problemCount ? `${problemCount} 个异常` : '未发现异常',
+        tone: problemCount ? 'warn' : 'ok',
+        detail: problemCount ? `发现 ${problemTags[0] || '运行态异常'}` : '基于当前运行态摘要',
+      },
+    ];
   }
 
   function buildHelloTestRequest(snapshot) {
@@ -387,6 +559,10 @@
     getConfigGuideContent,
     getConfigIdentityColumnLabel,
     getConfigIdentityValue,
+    buildConfigItemFromForm,
+    buildAdminStatusSummary,
+    extractRuntimeStatusTags,
+    getActiveConfigLabel,
     buildHelloTestRequest,
     formatResponsesModelAliasesInput,
     parseResponsesModelAliasesInput,

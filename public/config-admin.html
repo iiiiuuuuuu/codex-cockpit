@@ -6,20 +6,26 @@
   <title>配置管理</title>
   <style>
     :root {
-      --bg-top: #f6efe2;
-      --bg-bottom: #d9e7ee;
-      --panel: rgba(255, 252, 247, 0.9);
-      --panel-strong: rgba(255, 255, 255, 0.96);
-      --line: rgba(28, 49, 66, 0.14);
-      --text: #1c2934;
-      --muted: #627283;
-      --accent: #b85f3b;
-      --accent-soft: rgba(184, 95, 59, 0.12);
+      --page: #f4f7f9;
+      --surface: #ffffff;
+      --surface-muted: #f8fafb;
+      --surface-strong: #eef3f6;
+      --line: #dbe3e8;
+      --line-strong: #c7d2da;
+      --text: #16212b;
+      --muted: #647382;
+      --accent: #123447;
+      --accent-soft: #e6eef2;
+      --active: #0f766e;
+      --active-soft: #dff5ef;
       --success: #216843;
+      --success-soft: #e4f4ea;
       --warning: #9b5d16;
+      --warning-soft: #fff2d8;
       --danger: #a23636;
-      --shadow: 0 20px 52px rgba(28, 49, 66, 0.12);
-      --radius: 24px;
+      --danger-soft: #f9e6e6;
+      --shadow: 0 18px 44px rgba(22, 33, 43, 0.08);
+      --radius: 12px;
       --mono: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
       --sans: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
     }
@@ -32,23 +38,15 @@
       font-family: var(--sans);
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(255, 255, 255, 0.75), transparent 28%),
-        radial-gradient(circle at right 14% top 10%, rgba(184, 95, 59, 0.14), transparent 18%),
-        linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+        linear-gradient(135deg, rgba(18, 52, 71, 0.05), transparent 32%),
+        linear-gradient(180deg, #fbfcfd 0%, var(--page) 48%, #edf3f6 100%);
     }
 
     .page {
-      max-width: 1240px;
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 32px 20px 48px;
-    }
-
-    .composer,
-    .table-wrap {
-      background: var(--panel);
-      border: 1px solid rgba(255, 255, 255, 0.72);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(18px);
+      padding: 28px 24px 48px;
+      overflow-x: hidden;
     }
 
     .mono {
@@ -56,115 +54,115 @@
       font-size: 13px;
     }
 
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 16px;
+    }
+
+    .page-title {
+      margin: 0 0 4px;
+      font-size: 26px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .page-subtitle {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 18px;
+      justify-content: flex-end;
+      gap: 10px;
+      margin: 0;
+      min-width: 0;
+      max-width: 100%;
     }
 
-    .composer {
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .status-card,
+    .panel,
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 22px;
-      margin-bottom: 18px;
+      box-shadow: var(--shadow);
     }
 
-    .composer-layout {
+    .status-card {
+      padding: 16px;
+      min-height: 112px;
       display: grid;
-      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-      gap: 22px;
-      align-items: start;
-    }
-
-    .guide-list {
-      display: grid;
-      gap: 18px;
-    }
-
-    .guide-item {
-      display: grid;
-      grid-template-columns: 58px minmax(0, 1fr);
-      gap: 16px;
-      padding: 14px 0;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .guide-item:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .guide-step {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 52px;
-      height: 52px;
-      border-radius: 16px;
-      background: rgba(18, 27, 46, 0.08);
-      color: var(--muted);
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    .guide-title {
-      font-size: 17px;
-      font-weight: 700;
-      margin: 0 0 6px;
-    }
-
-    .guide-desc {
-      margin: 0 0 10px;
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 14px;
-    }
-
-    .guide-example {
-      margin: 10px 0 12px;
-      padding: 12px;
-      border-radius: 12px;
-      background: rgba(18, 27, 46, 0.06);
-      color: var(--text);
-      font-family: var(--mono);
-      font-size: 12px;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-    }
-
-    .guide-action {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 40px;
-      padding: 0 16px;
-      border-radius: 12px;
-      background: rgba(47, 99, 229, 0.1);
-      color: #2f63e5;
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    .guide-action:hover {
-      transform: translateY(-1px);
-    }
-
-    .composer-head {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
+      align-content: space-between;
       gap: 12px;
-      margin-bottom: 12px;
     }
 
-    .composer-title {
-      font-size: 24px;
+    .status-label {
+      color: var(--muted);
+      font-size: 12px;
       font-weight: 700;
-      margin-right: auto;
+    }
+
+    .status-value {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .status-detail {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .console-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .list-panel {
+      padding: 14px;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .panel-note {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
     }
 
     .badge {
@@ -175,47 +173,75 @@
       border-radius: 999px;
       font-size: 12px;
       font-weight: 700;
+      white-space: nowrap;
     }
 
     .badge.active {
-      background: var(--accent-soft);
-      color: var(--accent);
+      background: var(--active-soft);
+      color: var(--active);
     }
 
     .badge.ok {
-      background: rgba(33, 104, 67, 0.12);
+      background: var(--success-soft);
       color: var(--success);
     }
 
     .badge.warn {
-      background: rgba(155, 93, 22, 0.12);
+      background: var(--warning-soft);
       color: var(--warning);
     }
 
     .badge.note {
-      background: rgba(28, 41, 52, 0.08);
+      background: var(--surface-strong);
       color: var(--muted);
     }
 
-    .composer p {
-      margin: 0 0 12px;
-      color: var(--muted);
-      line-height: 1.7;
+    .message {
+      display: none;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      line-height: 1.6;
+      background: var(--surface);
+    }
+
+    .message.show { display: block; }
+
+    .message.info {
+      background: var(--success-soft);
+      border-color: rgba(33, 104, 67, 0.18);
+      color: var(--success);
+    }
+
+    .message.error {
+      background: var(--danger-soft);
+      border-color: rgba(162, 54, 54, 0.18);
+      color: var(--danger);
     }
 
     input,
     textarea {
       width: 100%;
       border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.92);
+      border-radius: var(--radius);
+      background: var(--surface);
       color: var(--text);
-      padding: 16px;
+      padding: 14px;
       font: inherit;
     }
 
     input {
-      min-height: 52px;
+      min-height: 48px;
+    }
+
+    input[type="radio"],
+    input[type="checkbox"] {
+      width: auto;
+      min-height: 0;
+      padding: 0;
+      margin: 0;
+      accent-color: var(--accent);
     }
 
     textarea {
@@ -237,58 +263,29 @@
       appearance: none;
       border: none;
       border-radius: 999px;
-      padding: 12px 18px;
+      padding: 11px 16px;
       font: inherit;
+      font-weight: 700;
       cursor: pointer;
-      transition: transform 120ms ease, opacity 120ms ease;
+      transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
     }
 
     button:hover:not(:disabled) { transform: translateY(-1px); }
     button:disabled { cursor: not-allowed; opacity: 0.55; }
 
     .primary {
-      background: var(--text);
+      background: var(--accent);
       color: white;
     }
 
     .secondary {
-      background: rgba(28, 41, 52, 0.08);
-      color: var(--text);
+      background: var(--accent-soft);
+      color: var(--accent);
     }
 
     .danger {
-      background: rgba(162, 54, 54, 0.12);
+      background: var(--danger-soft);
       color: var(--danger);
-    }
-
-    .message {
-      display: none;
-      margin-bottom: 18px;
-      padding: 14px 16px;
-      border-radius: 18px;
-      border: 1px solid transparent;
-      line-height: 1.6;
-    }
-
-    .message.show { display: block; }
-    .message.info {
-      background: rgba(33, 104, 67, 0.1);
-      border-color: rgba(33, 104, 67, 0.18);
-      color: var(--success);
-    }
-
-    .message.error {
-      background: rgba(162, 54, 54, 0.1);
-      border-color: rgba(162, 54, 54, 0.18);
-      color: var(--danger);
-    }
-
-    .settings-panel {
-      margin-bottom: 22px;
-      padding: 18px;
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.58);
-      border: 1px solid var(--line);
     }
 
     .form-grid {
@@ -309,10 +306,78 @@
       letter-spacing: 0.02em;
     }
 
+    .field-hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .mode-option {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-muted);
+      cursor: pointer;
+    }
+
+    .mode-option:has(input:checked) {
+      border-color: rgba(15, 118, 110, 0.42);
+      background: var(--active-soft);
+    }
+
+    .mode-name {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 800;
+    }
+
+    .mode-note {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .config-panel[hidden],
+    .hidden-settings[hidden] {
+      display: none;
+    }
+
+    .support-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .support-option {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--surface-strong);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
     .key-list {
       display: grid;
-      gap: 12px;
-      margin-top: 14px;
+      gap: 10px;
     }
 
     .key-item {
@@ -320,16 +385,17 @@
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
       align-items: center;
-      padding: 14px 16px;
-      border-radius: 18px;
-      background: rgba(255, 255, 255, 0.72);
+      padding: 12px;
+      border-radius: var(--radius);
+      background: var(--surface-muted);
       border: 1px solid var(--line);
     }
 
     .key-meta {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--muted);
       margin-bottom: 6px;
+      font-weight: 700;
     }
 
     .key-value {
@@ -337,34 +403,35 @@
     }
 
     .table-wrap {
-      border-radius: var(--radius);
-      padding: 12px;
+      padding: 0;
       overflow: auto;
+      box-shadow: none;
+      max-width: 100%;
     }
 
     table {
       width: 100%;
       min-width: 1040px;
       border-collapse: collapse;
-      background: rgba(255, 255, 255, 0.66);
-      border-radius: 18px;
+      background: var(--surface);
+      border-radius: var(--radius);
       overflow: hidden;
     }
 
     thead th {
       text-align: left;
-      padding: 16px 18px;
-      font-size: 13px;
+      padding: 14px 16px;
+      font-size: 12px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       color: var(--muted);
-      background: rgba(28, 41, 52, 0.05);
+      background: var(--surface-muted);
       border-bottom: 1px solid var(--line);
       white-space: nowrap;
     }
 
     tbody td {
-      padding: 18px;
+      padding: 16px;
       border-bottom: 1px solid var(--line);
       vertical-align: top;
       font-size: 14px;
@@ -385,7 +452,7 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      font-weight: 700;
+      font-weight: 800;
     }
 
     .cell-text {
@@ -409,10 +476,58 @@
       color: var(--muted);
     }
 
-    .summary-main {
-      color: var(--text);
-      font-weight: 600;
-      margin-bottom: 6px;
+    .runtime-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tag.ok,
+    .status-card.ok {
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .tag.warn,
+    .status-card.warn {
+      background: var(--warning-soft);
+      color: var(--warning);
+    }
+
+    .tag.danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .tag.active,
+    .status-card.active {
+      background: var(--active-soft);
+      color: var(--active);
+    }
+
+    .tag.muted,
+    .status-card.muted {
+      background: var(--surface-muted);
+      color: var(--muted);
+    }
+
+    .summary-raw {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
     }
 
     .action-cell {
@@ -429,21 +544,67 @@
     }
 
     .empty {
-      padding: 32px;
+      padding: 24px;
       border-radius: var(--radius);
-      background: rgba(255, 255, 255, 0.62);
-      border: 1px dashed var(--line);
+      background: var(--surface-muted);
+      border: 1px dashed var(--line-strong);
       color: var(--muted);
       text-align: center;
     }
 
     @media (max-width: 980px) {
-      .composer-layout {
-        grid-template-columns: 1fr;
+      .topbar,
+      .panel-head {
+        align-items: stretch;
+        flex-direction: column;
       }
 
-      .form-grid {
+      .toolbar {
+        justify-content: flex-start;
+      }
+
+      .status-grid,
+      .console-grid,
+      .form-grid,
+      .mode-switch {
         grid-template-columns: 1fr;
+      }
+    }
+
+    @media (min-width: 700px) and (max-width: 980px) {
+      .status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .page {
+        padding: 18px 12px 36px;
+      }
+
+      .topbar,
+      .status-grid,
+      .console-grid {
+        width: calc(100vw - 24px);
+        max-width: calc(100vw - 24px);
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: calc(100vw - 24px);
+        max-width: calc(100vw - 24px);
+        min-width: 0;
+      }
+
+      .toolbar .primary {
+        grid-column: 1 / -1;
+      }
+
+      .toolbar button,
+      .actions button {
+        min-width: 0;
+        width: 100%;
       }
     }
 
@@ -451,65 +612,147 @@
 </head>
   <body>
   <main class="page">
-    <div class="toolbar">
-      <button class="secondary" type="button" id="refreshButton">刷新</button>
-      <button class="secondary" type="button" id="testResponseButton">测试请求</button>
-    </div>
+    <header class="topbar">
+      <div>
+        <h1 class="page-title">Airouter 管理控制台</h1>
+        <p class="page-subtitle">管理入口 apikey、上游账号和当前运行态。</p>
+      </div>
+      <div class="toolbar">
+        <button class="secondary" type="button" id="refreshButton">刷新</button>
+        <button class="secondary" type="button" id="testResponseButton">测试请求</button>
+        <button class="primary" type="button" id="addApiKeyButton">新增随机 apikey</button>
+      </div>
+    </header>
 
-    <section class="composer">
-      <div class="composer-layout">
-        <aside class="guide-list" id="guideList"></aside>
+    <div id="message" class="message" role="status" aria-live="polite"></div>
+    <section class="status-grid" id="statusSummary" aria-label="管理状态摘要"></section>
 
-	        <div>
-          <div class="composer-head">
-	            <div class="composer-title">访问控制</div>
-	            <span id="apiKeyStatusBadge" class="badge note">未读取</span>
-	          </div>
-          <div id="message" class="message" role="status" aria-live="polite"></div>
-          <div class="settings-panel">
-            <div class="actions">
-              <button class="secondary" type="button" id="addApiKeyButton">新增随机 apikey</button>
-            </div>
-            <div id="apiKeysList" class="key-list"></div>
+    <section class="console-grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">新增配置项</h2>
+            <p class="panel-note">Token 适合 ChatGPT Codex 登录态；API Key 适合兼容上游或 Claude Messages。</p>
           </div>
+        </div>
 
-          <div id="responsesSettingsSection" hidden>
-            <div class="composer-head">
-              <div class="composer-title">Responses 设置</div>
+        <div class="mode-switch" role="radiogroup" aria-label="配置模式">
+          <label class="mode-option">
+            <input type="radio" name="configMode" value="token" checked>
+            <span>
+              <span class="mode-name">Token 模式</span>
+              <span class="mode-note">粘贴 ChatGPT AuthSession JSON，适合 Codex 登录态账号。</span>
+            </span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="configMode" value="apikey">
+            <span>
+              <span class="mode-name">API Key 模式</span>
+              <span class="mode-note">填写第三方上游地址和 API Key，再选择 GPT 或 Claude。</span>
+            </span>
+          </label>
+        </div>
+
+        <div id="tokenConfigPanel" class="config-panel">
+          <div class="field">
+            <label class="field-label" for="rawJsonInput">AuthSession JSON</label>
+            <textarea id="rawJsonInput" spellcheck="false"></textarea>
+            <p class="field-hint">打开 AuthSession 页面后复制完整 JSON；系统会自动提取 accessToken、account id 和邮箱备注。</p>
+          </div>
+        </div>
+
+        <div id="apiKeyConfigPanel" class="config-panel" hidden>
+          <div class="form-grid">
+            <div class="field">
+              <label class="field-label" for="apiKeyBaseUrlInput">Base URL</label>
+              <input id="apiKeyBaseUrlInput" type="url" placeholder="https://api.example.com/v1">
+              <p class="field-hint">OpenAI 兼容接口通常填写到 `/v1`。</p>
             </div>
-            <p>这里可以配置 `/v1/responses` 的模型别名映射。键匹配时忽略大小写，保存后会立即热重载。</p>
-            <div class="settings-panel">
-              <div class="field">
-                <label class="field-label" for="responsesModelAliasesInput">responses.model_aliases</label>
-                <textarea id="responsesModelAliasesInput" spellcheck="false" placeholder='{
+            <div class="field">
+              <label class="field-label" for="apiKeyInput">API Key</label>
+              <input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-...">
+              <p class="field-hint">会写入本地配置文件，仅用于转发到上游。</p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="apiKeyDescriptionInput">备注</label>
+              <input id="apiKeyDescriptionInput" type="text" placeholder="例如：OpenAI 兼容备用上游">
+            </div>
+            <div class="field">
+              <span class="field-label">支持能力</span>
+              <div class="support-options">
+                <label class="support-option">
+                  <input type="checkbox" name="apiKeySupport" value="gpt" checked>
+                  <span>GPT</span>
+                </label>
+                <label class="support-option">
+                  <input type="checkbox" name="apiKeySupport" value="claude">
+                  <span>Claude</span>
+                </label>
+              </div>
+              <p class="field-hint">GPT 用于 OpenAI 兼容 `/v1/*`；Claude 用于原样转发 `/v1/messages`。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="button" id="addButton">新增配置项</button>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">访问控制</h2>
+            <p class="panel-note">入口 apikey 为空时，请求不会校验 apikey。</p>
+          </div>
+          <span id="apiKeyStatusBadge" class="badge note">未读取</span>
+        </div>
+        <div id="apiKeysList" class="key-list"></div>
+      </aside>
+    </section>
+
+    <div id="responsesSettingsSection" class="hidden-settings" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 class="panel-title">Responses 设置</h2>
+            <p class="panel-note">这里可以配置 `/v1/responses` 的模型别名映射。键匹配时忽略大小写，保存后会立即热重载。</p>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="responsesModelAliasesInput">responses.model_aliases</label>
+          <textarea id="responsesModelAliasesInput" spellcheck="false" placeholder='{
   "gpt-5.2": "gpt-5.5"
 }'></textarea>
-              </div>
-              <div class="actions">
-                <button class="primary" type="button" id="saveResponsesSettingsButton">保存 Responses 设置</button>
-              </div>
-            </div>
-          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" type="button" id="saveResponsesSettingsButton">保存 Responses 设置</button>
+        </div>
+      </div>
+    </div>
 
-	          <div class="composer-head">
-	            <div class="composer-title">新增配置项</div>
-	          </div>
-	          <textarea id="rawJsonInput" spellcheck="false"></textarea>
-          <div class="actions">
-            <button class="primary" type="button" id="addButton">直接新增</button>
-          </div>
-	        </div>
-	      </div>
-	    </section>
-	    <section id="cards"></section>
+    <section class="panel list-panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">上游配置</h2>
+          <p class="panel-note">查看运行态、手动切换当前配置，或删除不再使用的上游。</p>
+        </div>
+      </div>
+      <section id="cards"></section>
+    </section>
   </main>
 
   <script src="/config-admin.js"></script>
   <script>
     const cardsEl = document.getElementById('cards');
-    const guideListEl = document.getElementById('guideList');
+    const statusSummaryEl = document.getElementById('statusSummary');
     const messageEl = document.getElementById('message');
     const rawJsonInput = document.getElementById('rawJsonInput');
+    const tokenConfigPanel = document.getElementById('tokenConfigPanel');
+    const apiKeyConfigPanel = document.getElementById('apiKeyConfigPanel');
+    const apiKeyBaseUrlInput = document.getElementById('apiKeyBaseUrlInput');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const apiKeyDescriptionInput = document.getElementById('apiKeyDescriptionInput');
     const addButton = document.getElementById('addButton');
     const refreshButton = document.getElementById('refreshButton');
     const testResponseButton = document.getElementById('testResponseButton');
@@ -534,6 +777,9 @@
       getConfigGuideContent,
       getConfigIdentityColumnLabel,
       getConfigIdentityValue,
+      buildConfigItemFromForm,
+      buildAdminStatusSummary,
+      extractRuntimeStatusTags,
     } = window.AirouterConfigAdmin;
 
     let snapshot = null;
@@ -562,6 +808,8 @@
       snapshot = data;
       const apikeys = Array.isArray(data && data.apikeys) ? data.apikeys : [];
 
+      renderStatusSummary(data);
+
       if (apikeys.length > 0) {
         apiKeyStatusBadge.className = 'badge ok';
         apiKeyStatusBadge.textContent = `已配置 ${apikeys.length} 个 apikey`;
@@ -572,23 +820,54 @@
 
       renderApiKeys(apikeys);
       responsesModelAliasesInput.value = formatResponsesModelAliasesInput(data);
-      renderGuide(data);
       rawJsonInput.placeholder = getConfigGuideContent(data).rawJsonPlaceholder;
     }
 
-    function renderGuide(data) {
-      const guide = getConfigGuideContent(data);
-      guideListEl.innerHTML = guide.steps.map((step, index) => `
-        <section class="guide-item">
-          <div class="guide-step">${index + 1}</div>
-          <div>
-            <h2 class="guide-title">${escapeHtml(step.title)}</h2>
-            <p class="guide-desc">${escapeHtml(step.description)}</p>
-            ${step.example ? `<pre class="guide-example">${escapeHtml(step.example)}</pre>` : ''}
-            ${step.actionHref ? `<a class="guide-action" href="${escapeHtml(step.actionHref)}" target="_blank" rel="noreferrer">${escapeHtml(step.actionText)}</a>` : ''}
-          </div>
-        </section>
+    function renderStatusSummary(data) {
+      statusSummaryEl.innerHTML = buildAdminStatusSummary(data).map(item => `
+        <article class="status-card ${escapeHtml(item.tone)}">
+          <div class="status-label">${escapeHtml(item.label)}</div>
+          <div class="status-value">${escapeHtml(item.value)}</div>
+          <div class="status-detail">${escapeHtml(item.detail)}</div>
+        </article>
       `).join('');
+    }
+
+    function getSelectedConfigMode() {
+      const selected = document.querySelector('input[name="configMode"]:checked');
+      return selected ? selected.value : 'token';
+    }
+
+    function updateConfigMode() {
+      const mode = getSelectedConfigMode();
+      tokenConfigPanel.hidden = mode !== 'token';
+      apiKeyConfigPanel.hidden = mode !== 'apikey';
+    }
+
+    function getSelectedApiKeySupport() {
+      return [...document.querySelectorAll('input[name="apiKeySupport"]:checked')]
+        .map(input => input.value);
+    }
+
+    function buildConfigItemFromInputs() {
+      return buildConfigItemFromForm({
+        mode: getSelectedConfigMode(),
+        tokenRawJson: rawJsonInput.value,
+        apiKey: apiKeyInput.value,
+        baseUrl: apiKeyBaseUrlInput.value,
+        description: apiKeyDescriptionInput.value,
+        support: getSelectedApiKeySupport(),
+      });
+    }
+
+    function clearConfigForm() {
+      rawJsonInput.value = '';
+      apiKeyInput.value = '';
+      apiKeyBaseUrlInput.value = '';
+      apiKeyDescriptionInput.value = '';
+      document.querySelectorAll('input[name="apiKeySupport"]').forEach(input => {
+        input.checked = input.value === 'gpt';
+      });
     }
 
     function renderApiKeys(apikeys) {
@@ -618,18 +897,23 @@
       return tags.join('');
     }
 
+    function renderRuntimeTags(runtime) {
+      return `
+        <div class="runtime-tags">
+          ${extractRuntimeStatusTags(runtime).map(tag => `
+            <span class="tag ${escapeHtml(tag.tone)}">${escapeHtml(tag.label)}</span>
+          `).join('')}
+        </div>
+      `;
+    }
+
     function renderSummary(runtime) {
-      if (!runtime) {
-        return `
-          <div class="summary-cell">
-            <div class="summary-main">暂无运行态数据</div>
-          </div>
-        `;
-      }
+      const summaryText = runtime && runtime.runtime_summary ? runtime.runtime_summary : '暂无运行态数据';
 
       return `
         <div class="summary-cell">
-          <div class="summary-main">${escapeHtml(runtime.runtime_summary || 'unknown')}</div>
+          ${renderRuntimeTags(runtime)}
+          <div class="summary-raw">${escapeHtml(summaryText)}</div>
         </div>
       `;
     }
@@ -712,6 +996,7 @@
           apiKeyStatusBadge.textContent = 'auth_token 无效';
           setMessage('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。');
           apiKeysListEl.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
+          statusSummaryEl.innerHTML = '<article class="status-card warn"><div class="status-label">管理鉴权</div><div class="status-value">无效</div><div class="status-detail">请使用正确的 auth_token 链接访问</div></article>';
           cardsEl.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
           return;
         }
@@ -722,14 +1007,15 @@
     }
 
     async function addConfig() {
-      const rawJson = rawJsonInput.value;
+      const configItem = buildConfigItemFromInputs();
       const result = await requestJson('/admin/api/configs', {
         method: 'POST',
-        body: JSON.stringify({ raw_json: rawJson }),
+        body: JSON.stringify({ raw_json: JSON.stringify(configItem) }),
       });
 
       snapshot = result;
-      rawJsonInput.value = '';
+      clearConfigForm();
+      updateConfigMode();
       renderHeader(snapshot);
       renderCards(snapshot);
       setMessage('info', '配置项已写入配置文件。');
@@ -878,6 +1164,10 @@
       }
     });
 
+    document.querySelectorAll('input[name="configMode"]').forEach(input => {
+      input.addEventListener('change', updateConfigMode);
+    });
+
     document.addEventListener('click', async event => {
       const deleteApiKeyButton = event.target.closest('[data-action="delete-apikey"]');
       if (deleteApiKeyButton) {
@@ -920,6 +1210,7 @@
       }
     });
 
+    updateConfigMode();
     loadSnapshot();
   </script>
 </body>

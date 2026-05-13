@@ -17,13 +17,17 @@ const {
   getConfigGuideContent,
   getConfigIdentityColumnLabel,
   getConfigIdentityValue,
+  buildConfigItemFromForm,
+  buildAdminStatusSummary,
+  extractRuntimeStatusTags,
+  getActiveConfigLabel,
   extractResponseSummary,
 } = require('../public/config-admin.js');
 
 test('config admin hides the responses settings module', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
-  const start = html.indexOf('<div id="responsesSettingsSection" hidden>');
-  const end = html.indexOf('<div class="composer-title">新增配置项</div>');
+  const start = html.indexOf('<div id="responsesSettingsSection" class="hidden-settings" hidden>');
+  const end = html.indexOf('<section class="panel list-panel">');
   const section = start >= 0 && end > start ? html.slice(start, end) : '';
 
   assert.ok(section, 'responses settings section should be wrapped in a hidden container');
@@ -47,6 +51,25 @@ test('config admin keeps the upstream config column compact after adding activat
   assert.match(html, /\.account-id-col,\s*\.account-id-cell\s*\{\s*width:\s*240px;\s*min-width:\s*240px;/);
   assert.match(html, /\.account-id-cell\s*\{\s*white-space:\s*normal;\s*word-break:\s*break-word;\s*overflow-wrap:\s*anywhere;/);
   assert.match(html, /\.action-cell\s*\{\s*width:\s*150px;\s*white-space:\s*nowrap;/);
+});
+
+test('config admin keeps all console controls after UI refresh', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
+
+  assert.match(html, /class="topbar"/);
+  assert.match(html, /id="statusSummary"/);
+  assert.match(html, /class="console-grid"/);
+  assert.match(html, /id="addApiKeyButton"/);
+  assert.match(html, /id="refreshButton"/);
+  assert.match(html, /id="testResponseButton"/);
+  assert.match(html, /id="addButton"/);
+  assert.match(html, /name="configMode" value="token"/);
+  assert.match(html, /name="configMode" value="apikey"/);
+  assert.match(html, /name="apiKeySupport" value="gpt"/);
+  assert.match(html, /name="apiKeySupport" value="claude"/);
+  assert.match(html, /data-action="activate"/);
+  assert.match(html, /data-action="delete"/);
+  assert.match(html, /data-action="delete-apikey"/);
 });
 
 test('buildConfigSnapshotRequest uses GET when only loading the latest snapshot', () => {
@@ -166,25 +189,185 @@ test('getPreferredApiKey returns the first configured apikey', () => {
   }), 'router-key');
 });
 
-test('getConfigGuideContent always includes token and apikey support examples', () => {
+test('getConfigGuideContent explains token JSON and apikey form entry separately', () => {
   const guide = getConfigGuideContent({
     mode: 'token',
   });
 
   assert.match(guide.rawJsonPlaceholder, /"accessToken": "\.\.\."/);
-  assert.match(guide.rawJsonPlaceholder, /"type": "apikey"/);
-  assert.match(guide.rawJsonPlaceholder, /"apikey": "sk-xxx"/);
-  assert.match(guide.rawJsonPlaceholder, /"base_url": "https:\/\/api\.example\.com\/v1"/);
-  assert.match(guide.rawJsonPlaceholder, /"support": \[\n    "claude"\n  \]/);
-  assert.match(guide.rawJsonPlaceholder, /"base_url": "https:\/\/claude\.example\.com\/v1"/);
-  assert.equal(guide.steps.some(step => /第三方 API/.test(step.description)), true);
+  assert.doesNotMatch(guide.rawJsonPlaceholder, /"type": "apikey"/);
+  assert.equal(guide.steps.some(step => /apikey 模式/.test(step.description)), true);
 
-  const apiKeyStep = guide.steps.find(step => step.title === '获取 AuthSession 或 API Key');
-  assert.match(apiKeyStep.example, /"type": "apikey"/);
-  assert.match(apiKeyStep.example, /"base_url": "https:\/\/api\.example\.com\/v1"/);
-  assert.match(apiKeyStep.example, /"apikey": "sk-xxx"/);
-  assert.match(apiKeyStep.example, /"description": "third-party provider"/);
-  assert.match(apiKeyStep.example, /"support": \[\n    "claude"\n  \]/);
+  const tokenStep = guide.steps.find(step => step.title === 'Token 模式');
+  assert.match(tokenStep.description, /AuthSession JSON/);
+  assert.match(tokenStep.example, /"accessToken": "\.\.\."/);
+  assert.equal(tokenStep.actionText, '打开 AuthSession 页面');
+
+  const apiKeyStep = guide.steps.find(step => step.title === 'API Key 模式');
+  assert.match(apiKeyStep.description, /输入框/);
+  assert.match(apiKeyStep.description, /Claude/);
+  assert.match(apiKeyStep.description, /GPT/);
+  assert.equal(apiKeyStep.example, undefined);
+  assert.equal(apiKeyStep.actionHref, undefined);
+});
+
+test('buildConfigItemFromForm keeps token mode as pasted AuthSession JSON', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'token',
+      tokenRawJson: JSON.stringify({
+        user: {
+          email: 'user@example.com',
+        },
+        account: {
+          id: 'account-1',
+        },
+        accessToken: 'token-1',
+      }),
+    }),
+    {
+      user: {
+        email: 'user@example.com',
+      },
+      account: {
+        id: 'account-1',
+      },
+      accessToken: 'token-1',
+    },
+  );
+});
+
+test('buildConfigItemFromForm builds an apikey config from normal form fields', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'apikey',
+      apiKey: '  sk-third-party  ',
+      baseUrl: ' https://api.example.com/v1/ ',
+      description: ' backup provider ',
+      support: ['gpt', 'claude'],
+    }),
+    {
+      type: 'apikey',
+      apikey: 'sk-third-party',
+      base_url: 'https://api.example.com/v1',
+      description: 'backup provider',
+      support: ['gpt', 'claude'],
+    },
+  );
+});
+
+test('buildConfigItemFromForm defaults apikey support to gpt when nothing is selected', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'apikey',
+      apiKey: 'sk-third-party',
+      baseUrl: 'https://api.example.com/v1',
+      support: [],
+    }),
+    {
+      type: 'apikey',
+      apikey: 'sk-third-party',
+      base_url: 'https://api.example.com/v1',
+      description: '',
+      support: ['gpt'],
+    },
+  );
+});
+
+test('getActiveConfigLabel identifies the active config item', () => {
+  assert.equal(
+    getActiveConfigLabel({
+      configs: [
+        { index: 0, is_active: false },
+        { index: 1, is_active: true },
+      ],
+    }),
+    '配置 #2',
+  );
+});
+
+test('getActiveConfigLabel returns default routing when no config is manually active', () => {
+  assert.equal(
+    getActiveConfigLabel({
+      configs: [
+        { index: 0, is_active: false },
+      ],
+    }),
+    '自动调度',
+  );
+});
+
+test('buildAdminStatusSummary summarizes apikeys, configs, active config, and health', () => {
+  assert.deepEqual(
+    buildAdminStatusSummary({
+      apikeys: ['sk-airouter-one', 'sk-airouter-two'],
+      configs: [
+        {
+          index: 0,
+          is_active: false,
+          runtime: {
+            runtime_summary: '可用=否 | 额度=unknown | 刷新时间=unknown | 周额度=unknown | 刷新时间=unknown | 状态=额度检查失败 | 错误=request timeout after 10000ms',
+          },
+        },
+        {
+          index: 1,
+          is_active: true,
+          runtime: {
+            runtime_summary: '可用=是 | 额度=83%',
+          },
+        },
+      ],
+    }),
+    [
+      {
+        label: '入口 apikey',
+        value: '2 个',
+        tone: 'ok',
+        detail: '请求会校验入口 apikey',
+      },
+      {
+        label: '上游配置',
+        value: '2 个',
+        tone: 'ok',
+        detail: 'Token 与 API Key 配置总数',
+      },
+      {
+        label: '当前激活',
+        value: '配置 #2',
+        tone: 'active',
+        detail: '手动切换会临时覆盖自动调度',
+      },
+      {
+        label: '健康状态',
+        value: '1 个异常',
+        tone: 'warn',
+        detail: '发现 timeout',
+      },
+    ],
+  );
+});
+
+test('extractRuntimeStatusTags pulls readable status tags from runtime summary', () => {
+  assert.deepEqual(
+    extractRuntimeStatusTags({
+      runtime_summary: '可用=否 | 额度=unknown | 刷新时间=unknown | 周额度=unknown | 状态=额度检查失败 | 错误=request timeout after 10000ms',
+    }),
+    [
+      { label: '不可用', tone: 'danger' },
+      { label: '额度 unknown', tone: 'warn' },
+      { label: '刷新 unknown', tone: 'warn' },
+      { label: 'timeout', tone: 'danger' },
+    ],
+  );
+});
+
+test('extractRuntimeStatusTags falls back when runtime data is missing', () => {
+  assert.deepEqual(
+    extractRuntimeStatusTags(null),
+    [
+      { label: '暂无运行态', tone: 'muted' },
+    ],
+  );
 });
 
 test('getConfigIdentityColumnLabel uses upstream config when any apikey item exists', () => {
