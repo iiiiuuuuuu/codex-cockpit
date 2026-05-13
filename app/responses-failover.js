@@ -4,6 +4,8 @@ const { StringDecoder } = require('node:string_decoder');
 const RETRYABLE_HTTP_ERROR_TYPES = new Map([
   ['usage_limit_reached', { reason: 'responses_usage_limit_reached' }],
   ['usage_not_included', { reason: 'responses_usage_not_included' }],
+  ['unauthorized', { reason: 'missing_credentials' }],
+  ['token_revoked', { reason: 'missing_credentials' }],
 ]);
 
 const RETRYABLE_STREAM_ERROR_CODES = new Map([
@@ -34,6 +36,46 @@ function parseJsonObject(text) {
   }
 }
 
+function getPayloadString(payload, path) {
+  let current = payload;
+  for (const key of path) {
+    if (!current || typeof current !== 'object') {
+      return '';
+    }
+
+    current = current[key];
+  }
+
+  return typeof current === 'string' ? current : '';
+}
+
+function getAuthFailureKey(payload, bodyText) {
+  const candidates = [
+    getPayloadString(payload, ['detail']),
+    getPayloadString(payload, ['message']),
+    getPayloadString(payload, ['code']),
+    getPayloadString(payload, ['error', 'code']),
+    getPayloadString(payload, ['error', 'type']),
+    getPayloadString(payload, ['error', 'message']),
+    bodyText,
+  ];
+
+  if (candidates.some(value => typeof value === 'string' && value.trim().toLowerCase() === 'unauthorized')) {
+    return 'unauthorized';
+  }
+
+  const normalized = candidates
+    .filter(value => typeof value === 'string' && value.trim())
+    .join('\n')
+    .toLowerCase();
+
+  if (normalized.includes('token_revoked') || normalized.includes('invalidated oauth token')) {
+    return 'token_revoked';
+  }
+
+  return '';
+}
+
 function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
   const normalizedStatusCode = Number(statusCode);
   if (normalizedStatusCode !== 429 && normalizedStatusCode !== 401 && normalizedStatusCode !== 403) {
@@ -41,16 +83,18 @@ function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
   }
 
   const payload = parseJsonObject(bodyText);
-  const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim().toLowerCase() : '';
-  if ((normalizedStatusCode === 401 || normalizedStatusCode === 403) && detail === 'unauthorized') {
-    return {
-      reason: 'missing_credentials',
-      retryKey: 'unauthorized',
-      retrySource: 'http',
-    };
-  }
+  if (normalizedStatusCode === 401 || normalizedStatusCode === 403) {
+    const authFailureKey = getAuthFailureKey(payload, bodyText);
+    const metadata = RETRYABLE_HTTP_ERROR_TYPES.get(authFailureKey);
 
-  if (normalizedStatusCode !== 429) {
+    if (metadata) {
+      return {
+        reason: metadata.reason,
+        retryKey: authFailureKey,
+        retrySource: 'http',
+      };
+    }
+
     return null;
   }
 

@@ -350,6 +350,26 @@ test('applyQuotaPayload marks unauthorized detail payloads as missing credential
   assert.equal(configs[0].runtime.reason, 'missing_credentials');
 });
 
+test('applyQuotaPayload marks token_revoked payloads as missing credentials', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { available: true, reason: 'ok' }),
+  ];
+  const { manager } = createManager(configs, { initialActiveConfigIndex: 0 });
+
+  const selected = manager.applyQuotaPayload(configs[0], {
+    detail: 'Encountered invalidated oauth token for user',
+    error: {
+      code: 'token_revoked',
+    },
+  });
+
+  assert.equal(selected, configs[1]);
+  assert.equal(manager.getActiveConfig(), configs[1]);
+  assert.equal(configs[0].runtime.available, false);
+  assert.equal(configs[0].runtime.reason, 'missing_credentials');
+});
+
 test('applyQuotaPayload marks remaining below threshold as unavailable', () => {
   const configs = [createConfig(0), createConfig(1)];
   const { manager } = createManager(configs);

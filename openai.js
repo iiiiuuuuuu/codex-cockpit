@@ -463,7 +463,7 @@ async function inspectResponsesEventStream(response) {
 }
 
 async function inspectResponsesUpstreamForFailover(response, statusCode, rawHeaders) {
-    if (Number(statusCode) === 429) {
+    if ([429, 401, 403].includes(Number(statusCode))) {
         const bodyBuffer = await consumeResponseBody(response);
         const bodyText = decodeResponseBody(bodyBuffer, getHeaderValue(rawHeaders, 'content-encoding'));
         const classification = classifyRetryableResponsesHttpError({

@@ -60,6 +60,37 @@ test('classifyRetryableResponsesHttpError detects unauthorized detail payloads',
   });
 });
 
+test('classifyRetryableResponsesHttpError detects revoked oauth token payloads', () => {
+  const result = classifyRetryableResponsesHttpError({
+    statusCode: 401,
+    bodyText: JSON.stringify({
+      detail: 'Encountered invalidated oauth token for user, failing request',
+      error: {
+        code: 'token_revoked',
+      },
+    }),
+  });
+
+  assert.deepEqual(result, {
+    reason: 'missing_credentials',
+    retryKey: 'token_revoked',
+    retrySource: 'http',
+  });
+});
+
+test('classifyRetryableResponsesHttpError detects token_revoked in raw error text', () => {
+  const result = classifyRetryableResponsesHttpError({
+    statusCode: 401,
+    bodyText: 'unexpected status 401 Unauthorized: Encountered invalidated oauth token for user, auth error code: token_revoked',
+  });
+
+  assert.deepEqual(result, {
+    reason: 'missing_credentials',
+    retryKey: 'token_revoked',
+    retrySource: 'http',
+  });
+});
+
 test('classifyRetryableResponsesHttpError ignores non-retryable payloads', () => {
   const result = classifyRetryableResponsesHttpError({
     statusCode: 503,

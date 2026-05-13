@@ -145,7 +145,8 @@ function createAccountManager(options) {
    */
   function evaluateQuotaPayload(payload) {
     const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim().toLowerCase() : '';
-    if (detail === 'unauthorized') {
+    const errorCode = payload && payload.error && typeof payload.error.code === 'string' ? payload.error.code.trim().toLowerCase() : '';
+    if (detail === 'unauthorized' || detail.includes('token_revoked') || detail.includes('invalidated oauth token') || errorCode === 'token_revoked') {
       return {
         available: false,
         reason: 'missing_credentials',
