@@ -3,3 +3,10 @@ openai.log
 openai.control.json
 node_modules
 openai.pid
+
+# Desktop wrapper generated artifacts
+desktop/node_modules
+desktop/package-lock.json
+desktop/src-tauri/target
+desktop/src-tauri/resources/airouter
+desktop/src-tauri/binaries/node*

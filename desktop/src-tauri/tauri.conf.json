@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Airouter",
+  "version": "0.1.0",
+  "identifier": "local.airouter.desktop",
+  "build": {
+    "beforeDevCommand": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
+    "beforeBuildCommand": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
+    "frontendDist": "../"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Airouter Desktop",
+        "width": 1120,
+        "height": 760,
+        "minWidth": 920,
+        "minHeight": 680
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "resources": ["resources/airouter"],
+    "externalBin": ["binaries/node"],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "signingIdentity": "-"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "airouter-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:resources": "node scripts/prepare-resources.mjs",
+    "prepare:node": "node scripts/prepare-node.mjs",
+    "prepare": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
+    "tauri": "tauri",
+    "dev": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs && tauri dev",
+    "build": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}
