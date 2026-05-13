@@ -4,6 +4,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 const APP_DIR_NAME: &str = "Airouter";
@@ -13,6 +15,9 @@ const CONFIG_TEMPLATE_FILE: &str = "openai.json.example";
 const PID_FILE: &str = "openai.pid";
 const LOG_FILE: &str = "openai.log";
 const DEFAULT_PORT: u16 = 3009;
+const PORT_KILL_WAIT_TIMEOUT_MS: u64 = 2_500;
+const PORT_FORCE_KILL_WAIT_TIMEOUT_MS: u64 = 800;
+const PORT_KILL_POLL_INTERVAL_MS: u64 = 100;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -190,6 +195,11 @@ fn read_config(runtime_dir: &Path) -> Result<ConfigShape, String> {
     serde_json::from_str(&raw).map_err(|error| format!("openai.json 解析失败: {error}"))
 }
 
+fn configured_port(runtime_dir: &Path) -> Result<u16, String> {
+    let config = read_config(runtime_dir)?;
+    Ok(parse_port(config.port).unwrap_or(DEFAULT_PORT))
+}
+
 fn build_admin_url(port: u16, auth_token: Option<&str>) -> String {
     let base = format!("http://localhost:{port}/admin/configs");
     match auth_token.filter(|token| !token.trim().is_empty()) {
@@ -207,6 +217,93 @@ fn tail_text(path: &Path, limit: usize) -> String {
     let mut lines = raw.lines().rev().take(max).collect::<Vec<_>>();
     lines.reverse();
     lines.join("\n")
+}
+
+fn parse_lsof_pid_output(output: &str) -> Vec<u32> {
+    output
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .collect()
+}
+
+fn listening_pids_for_port(port: u16) -> Result<Vec<u32>, String> {
+    let output = Command::new("lsof")
+        .arg(format!("-tiTCP:{port}"))
+        .arg("-sTCP:LISTEN")
+        .arg("-n")
+        .arg("-P")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| format!("无法检查端口 {port} 占用: {error}"))?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Ok(parse_lsof_pid_output(&stdout));
+    }
+
+    if output.stdout.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(format!("检查端口 {port} 占用失败: {stderr}"))
+}
+
+fn wait_for_pid_exit(pid: u32, timeout: Duration) -> bool {
+    let started_at = Instant::now();
+
+    while process_exists(pid) {
+        if started_at.elapsed() >= timeout {
+            return false;
+        }
+
+        thread::sleep(Duration::from_millis(PORT_KILL_POLL_INTERVAL_MS));
+    }
+
+    true
+}
+
+fn signal_pid(pid: u32, signal: &str) -> Result<(), String> {
+    let status = Command::new("kill")
+        .arg(format!("-{signal}"))
+        .arg(pid.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .status()
+        .map_err(|error| format!("无法发送 {signal} 到 PID {pid}: {error}"))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("无法发送 {signal} 到 PID {pid}"))
+    }
+}
+
+fn terminate_pid(pid: u32) -> Result<(), String> {
+    if !process_exists(pid) {
+        return Ok(());
+    }
+
+    let _ = signal_pid(pid, "TERM");
+    if wait_for_pid_exit(pid, Duration::from_millis(PORT_KILL_WAIT_TIMEOUT_MS)) {
+        return Ok(());
+    }
+
+    let _ = signal_pid(pid, "KILL");
+    if wait_for_pid_exit(pid, Duration::from_millis(PORT_FORCE_KILL_WAIT_TIMEOUT_MS)) {
+        return Ok(());
+    }
+
+    Err(format!("PID {pid} 占用端口且无法终止"))
+}
+
+fn kill_port_listeners(port: u16) -> Result<Vec<u32>, String> {
+    let pids = listening_pids_for_port(port)?;
+    for pid in &pids {
+        terminate_pid(*pid)?;
+    }
+    Ok(pids)
 }
 
 fn status_for_runtime(runtime_dir: PathBuf) -> ServiceStatus {
@@ -228,7 +325,7 @@ fn status_for_runtime(runtime_dir: PathBuf) -> ServiceStatus {
         match read_config(&runtime_dir) {
             Ok(config) => {
                 config_valid = true;
-                let selected_port = parse_port(config.port).unwrap_or(DEFAULT_PORT);
+                let selected_port = configured_port(&runtime_dir).unwrap_or(DEFAULT_PORT);
                 port = Some(selected_port);
                 admin_url = Some(build_admin_url(selected_port, config.auth_token.as_deref()));
             }
@@ -256,6 +353,12 @@ fn status_for_runtime(runtime_dir: PathBuf) -> ServiceStatus {
 fn run_service_command(app: &AppHandle, action: &str) -> Result<(), String> {
     let runtime_dir = ensure_runtime(app)?;
     let node = node_sidecar_path(app)?;
+
+    if action == "start" || action == "restart" {
+        let port = configured_port(&runtime_dir)?;
+        let _ = kill_port_listeners(port)?;
+    }
+
     let mut command = Command::new(node);
     command.current_dir(&runtime_dir).arg("run.js");
     if action != "start" {
@@ -420,6 +523,34 @@ mod tests {
         assert_eq!(parse_port(Some(Value::from(3010))), Some(3010));
         assert_eq!(parse_port(Some(Value::from("3011"))), Some(3011));
         assert_eq!(parse_port(Some(Value::from("bad"))), None);
+    }
+
+    #[test]
+    fn reads_configured_port_from_runtime_config() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(temp.path().join(CONFIG_FILE), r#"{"port":"31888"}"#).expect("write config");
+        assert_eq!(
+            configured_port(temp.path()).expect("configured port"),
+            31888
+        );
+    }
+
+    #[test]
+    fn configured_port_falls_back_to_default_when_missing() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        fs::write(temp.path().join(CONFIG_FILE), r#"{}"#).expect("write config");
+        assert_eq!(
+            configured_port(temp.path()).expect("configured port"),
+            DEFAULT_PORT
+        );
+    }
+
+    #[test]
+    fn parses_lsof_pid_output() {
+        assert_eq!(
+            parse_lsof_pid_output("123\n 456 \nnot-a-pid\n789\n"),
+            vec![123, 456, 789]
+        );
     }
 
     #[test]
