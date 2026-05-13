@@ -22,7 +22,7 @@ jobs:
             build_script: build:macos
             artifact_glob: desktop/src-tauri/target/release/bundle/macos/*.zip
           - platform: windows
-            runner: windows-latest
+            runner: windows-2022
             build_script: build:windows
             artifact_glob: desktop/src-tauri/target/release/bundle/nsis/*.exe
 
@@ -51,7 +51,29 @@ jobs:
 
       - name: Build desktop app
         working-directory: desktop
-        run: npm run ${{ matrix.build_script }}
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run ${{ matrix.build_script }} 2>&1 | tee ../desktop-build-${{ matrix.platform }}.log
+
+      - name: Report build failure
+        if: failure()
+        shell: bash
+        run: |
+          log_file="desktop-build-${{ matrix.platform }}.log"
+          if [ -f "$log_file" ]; then
+            tail -n 120 "$log_file"
+            escaped_tail="$(tail -n 80 "$log_file" | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')"
+            echo "::error title=${{ matrix.platform }} desktop build failed::$escaped_tail"
+          fi
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: airouter-${{ matrix.platform }}-build-log
+          path: desktop-build-${{ matrix.platform }}.log
+          if-no-files-found: ignore
 
       - name: Zip macOS app
         if: matrix.platform == 'macos'
