@@ -263,7 +263,7 @@
         },
         {
           title: 'Token 模式',
-          description: '登录 ChatGPT 后打开 AuthSession 页面，把返回的 AuthSession JSON 粘贴到文本框里。',
+          description: '建议使用浏览器隐私模式登录 ChatGPT 后打开 AuthSession 页面，把返回的 AuthSession JSON 粘贴到文本框里。粘贴后不要退出该登录态，否则 token 会失效。',
           example: JSON.stringify({
             user: {
               email: 'user@example.com',
@@ -485,6 +485,53 @@
     return aliases && typeof aliases === 'object' && !Array.isArray(aliases) ? aliases : {};
   }
 
+  function normalizePortValue(value) {
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535) {
+      return value;
+    }
+
+    const text = typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+    if (!/^\d+$/.test(text)) {
+      return null;
+    }
+
+    const port = Number.parseInt(text, 10);
+    return port >= 1 && port <= 65535 ? port : null;
+  }
+
+  function getConfiguredServicePort(snapshot) {
+    return normalizePortValue(snapshot && snapshot.file_port)
+      || normalizePortValue(snapshot && snapshot.runtime_port)
+      || 3009;
+  }
+
+  function getRuntimeServicePort(snapshot) {
+    return normalizePortValue(snapshot && snapshot.runtime_port)
+      || getConfiguredServicePort(snapshot);
+  }
+
+  function getConfiguredProxyPort(snapshot) {
+    return normalizePortValue(snapshot && snapshot.proxy_port);
+  }
+
+  function buildProxyAccessInfo(snapshot) {
+    const configuredPort = getConfiguredServicePort(snapshot);
+    const runtimePort = getRuntimeServicePort(snapshot);
+    const baseUrl = `http://localhost:${runtimePort}`;
+    const configuredBaseUrl = `http://localhost:${configuredPort}`;
+
+    return {
+      configuredPort,
+      runtimePort,
+      proxyPort: getConfiguredProxyPort(snapshot),
+      baseUrl,
+      responsesUrl: `${baseUrl}/v1/responses`,
+      v1Url: `${baseUrl}/v1`,
+      configuredV1Url: `${configuredBaseUrl}/v1`,
+      portPendingRestart: configuredPort !== runtimePort,
+    };
+  }
+
   function formatResponsesModelAliasesInput(snapshot) {
     return JSON.stringify(getResponsesModelAliases(snapshot), null, 2);
   }
@@ -567,6 +614,8 @@
     formatResponsesModelAliasesInput,
     parseResponsesModelAliasesInput,
     extractResponseSummary,
+    normalizePortValue,
+    buildProxyAccessInfo,
   };
 
   if (typeof module !== 'undefined' && module.exports) {

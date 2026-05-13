@@ -4,20 +4,20 @@
   "version": "0.1.0",
   "identifier": "local.airouter.desktop",
   "build": {
-    "beforeDevCommand": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
-    "beforeBuildCommand": "node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
-    "frontendDist": "../"
+    "beforeDevCommand": "node scripts/prepare-frontend.mjs && node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
+    "beforeBuildCommand": "node scripts/prepare-frontend.mjs && node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs",
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
-        "title": "Airouter Desktop",
+        "title": "Airouter",
         "width": 1120,
         "height": 760,
-        "minWidth": 920,
-        "minHeight": 680
+        "minWidth": 900,
+        "minHeight": 640
       }
     ],
     "security": {

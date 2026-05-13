@@ -86,14 +86,6 @@
       max-width: 100%;
     }
 
-    .status-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .status-card,
     .panel,
     .table-wrap {
       background: var(--surface);
@@ -102,38 +94,18 @@
       box-shadow: var(--shadow);
     }
 
-    .status-card {
-      padding: 16px;
-      min-height: 112px;
-      display: grid;
-      align-content: space-between;
-      gap: 12px;
-    }
-
-    .status-label {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .status-value {
-      font-size: 24px;
-      font-weight: 800;
-      line-height: 1.15;
-    }
-
-    .status-detail {
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
     .console-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
       gap: 16px;
       align-items: start;
       margin-bottom: 16px;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 12px;
+      min-width: 0;
     }
 
     .panel {
@@ -163,6 +135,20 @@
       color: var(--muted);
       font-size: 13px;
       line-height: 1.5;
+    }
+
+    .panel-tools {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .key-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin: 0 0 12px;
     }
 
     .badge {
@@ -288,6 +274,11 @@
       color: var(--danger);
     }
 
+    .danger.confirming {
+      background: rgba(214, 69, 69, 0.14);
+      color: #a83232;
+    }
+
     .form-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -311,6 +302,51 @@
       color: var(--muted);
       font-size: 13px;
       line-height: 1.55;
+    }
+
+    .field-hint a {
+      color: var(--accent);
+      font-weight: 800;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(18, 52, 71, 0.32);
+    }
+
+    .field-hint a:hover {
+      border-bottom-color: var(--accent);
+    }
+
+    .port-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .endpoint-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-muted);
+    }
+
+    .endpoint-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .endpoint-value {
+      display: block;
+      color: var(--accent);
+      word-break: break-all;
+    }
+
+    .endpoint-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     .mode-switch {
@@ -493,14 +529,12 @@
       white-space: nowrap;
     }
 
-    .tag.ok,
-    .status-card.ok {
+    .tag.ok {
       background: var(--success-soft);
       color: var(--success);
     }
 
-    .tag.warn,
-    .status-card.warn {
+    .tag.warn {
       background: var(--warning-soft);
       color: var(--warning);
     }
@@ -510,14 +544,12 @@
       color: var(--danger);
     }
 
-    .tag.active,
-    .status-card.active {
+    .tag.active {
       background: var(--active-soft);
       color: var(--active);
     }
 
-    .tag.muted,
-    .status-card.muted {
+    .tag.muted {
       background: var(--surface-muted);
       color: var(--muted);
     }
@@ -563,17 +595,11 @@
         justify-content: flex-start;
       }
 
-      .status-grid,
       .console-grid,
       .form-grid,
+      .port-grid,
       .mode-switch {
         grid-template-columns: 1fr;
-      }
-    }
-
-    @media (min-width: 700px) and (max-width: 980px) {
-      .status-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -583,7 +609,6 @@
       }
 
       .topbar,
-      .status-grid,
       .console-grid {
         width: calc(100vw - 24px);
         max-width: calc(100vw - 24px);
@@ -602,6 +627,8 @@
       }
 
       .toolbar button,
+      .panel-tools button,
+      .key-toolbar button,
       .actions button {
         min-width: 0;
         width: 100%;
@@ -620,12 +647,10 @@
       <div class="toolbar">
         <button class="secondary" type="button" id="refreshButton">刷新</button>
         <button class="secondary" type="button" id="testResponseButton">测试请求</button>
-        <button class="primary" type="button" id="addApiKeyButton">新增随机 apikey</button>
       </div>
     </header>
 
     <div id="message" class="message" role="status" aria-live="polite"></div>
-    <section class="status-grid" id="statusSummary" aria-label="管理状态摘要"></section>
 
     <section class="console-grid">
       <div class="panel">
@@ -657,7 +682,11 @@
           <div class="field">
             <label class="field-label" for="rawJsonInput">AuthSession JSON</label>
             <textarea id="rawJsonInput" spellcheck="false"></textarea>
-            <p class="field-hint">打开 AuthSession 页面后复制完整 JSON；系统会自动提取 accessToken、account id 和邮箱备注。</p>
+            <p class="field-hint">
+              建议使用浏览器隐私模式登录 ChatGPT 后打开
+              <a href="https://chatgpt.com/api/auth/session" target="_blank" rel="noreferrer" data-open-external="true">AuthSession 页面</a>
+              复制完整 JSON；粘贴后不要退出该登录态，否则 token 会失效。系统会自动提取 accessToken、account id 和邮箱备注。
+            </p>
           </div>
         </div>
 
@@ -699,16 +728,51 @@
         </div>
       </div>
 
-      <aside class="panel">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">访问控制</h2>
-            <p class="panel-note">入口 apikey 为空时，请求不会校验 apikey。</p>
+      <div class="side-stack">
+        <aside class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">访问控制</h2>
+              <p class="panel-note">入口 apikey 为空时，请求不会校验 apikey。</p>
+            </div>
+            <div class="panel-tools">
+              <span id="apiKeyStatusBadge" class="badge note">未读取</span>
+            </div>
           </div>
-          <span id="apiKeyStatusBadge" class="badge note">未读取</span>
-        </div>
-        <div id="apiKeysList" class="key-list"></div>
-      </aside>
+          <div class="key-toolbar">
+            <button class="primary" type="button" id="addApiKeyButton">新增随机 apikey</button>
+          </div>
+          <div id="apiKeysList" class="key-list"></div>
+        </aside>
+
+        <aside class="panel" id="proxySettingsPanel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">代理入口</h2>
+              <p class="panel-note">配置本地服务端口和访问上游时使用的本地代理端口。</p>
+            </div>
+          </div>
+          <div class="port-grid">
+            <div class="field">
+              <label class="field-label" for="servicePortInput">服务端口</label>
+              <input id="servicePortInput" type="number" min="1" max="65535" inputmode="numeric" placeholder="3009">
+            </div>
+            <div class="field">
+              <label class="field-label" for="proxyPortInput">代理端口</label>
+              <input id="proxyPortInput" type="number" min="1" max="65535" inputmode="numeric" placeholder="留空不用代理">
+            </div>
+          </div>
+          <div class="endpoint-card">
+            <div class="endpoint-label">代理访问地址</div>
+            <code class="mono endpoint-value" id="proxyV1Url">http://localhost:3009/v1</code>
+            <div class="endpoint-meta" id="proxyEndpointMeta">Responses: http://localhost:3009/v1/responses</div>
+          </div>
+          <div class="actions">
+            <button class="primary" type="button" id="saveProxySettingsButton">保存端口配置</button>
+          </div>
+          <p class="field-hint">保存后立即生效；服务端口变化时页面会自动跳转到新地址。</p>
+        </aside>
+      </div>
     </section>
 
     <div id="responsesSettingsSection" class="hidden-settings" hidden>
@@ -745,7 +809,6 @@
   <script src="/config-admin.js"></script>
   <script>
     const cardsEl = document.getElementById('cards');
-    const statusSummaryEl = document.getElementById('statusSummary');
     const messageEl = document.getElementById('message');
     const rawJsonInput = document.getElementById('rawJsonInput');
     const tokenConfigPanel = document.getElementById('tokenConfigPanel');
@@ -758,8 +821,13 @@
     const testResponseButton = document.getElementById('testResponseButton');
     const addApiKeyButton = document.getElementById('addApiKeyButton');
     const saveResponsesSettingsButton = document.getElementById('saveResponsesSettingsButton');
+    const saveProxySettingsButton = document.getElementById('saveProxySettingsButton');
     const apiKeysListEl = document.getElementById('apiKeysList');
     const apiKeyStatusBadge = document.getElementById('apiKeyStatusBadge');
+    const servicePortInput = document.getElementById('servicePortInput');
+    const proxyPortInput = document.getElementById('proxyPortInput');
+    const proxyV1Url = document.getElementById('proxyV1Url');
+    const proxyEndpointMeta = document.getElementById('proxyEndpointMeta');
     const responsesModelAliasesInput = document.getElementById('responsesModelAliasesInput');
     const adminAuthToken = new URLSearchParams(window.location.search).get('auth_token') || '';
     const {
@@ -778,8 +846,9 @@
       getConfigIdentityColumnLabel,
       getConfigIdentityValue,
       buildConfigItemFromForm,
-      buildAdminStatusSummary,
       extractRuntimeStatusTags,
+      normalizePortValue,
+      buildProxyAccessInfo,
     } = window.AirouterConfigAdmin;
 
     let snapshot = null;
@@ -804,11 +873,25 @@
       messageEl.textContent = text;
     }
 
+    function renderProxySettings(data) {
+      const info = buildProxyAccessInfo(data || {});
+      servicePortInput.value = String(info.configuredPort);
+      proxyPortInput.value = info.proxyPort ? String(info.proxyPort) : '';
+      proxyV1Url.textContent = info.portPendingRestart ? info.configuredV1Url : info.v1Url;
+
+      const proxyText = info.proxyPort
+        ? `上游代理端口: ${info.proxyPort}`
+        : '未配置上游代理端口';
+      const restartText = info.portPendingRestart
+        ? `正在切换到 ${info.configuredPort}；当前连接仍在 ${info.runtimePort}。`
+        : `Responses: ${info.responsesUrl}`;
+
+      proxyEndpointMeta.textContent = `${restartText} ${proxyText}`;
+    }
+
     function renderHeader(data) {
       snapshot = data;
       const apikeys = Array.isArray(data && data.apikeys) ? data.apikeys : [];
-
-      renderStatusSummary(data);
 
       if (apikeys.length > 0) {
         apiKeyStatusBadge.className = 'badge ok';
@@ -819,18 +902,9 @@
       }
 
       renderApiKeys(apikeys);
+      renderProxySettings(data);
       responsesModelAliasesInput.value = formatResponsesModelAliasesInput(data);
       rawJsonInput.placeholder = getConfigGuideContent(data).rawJsonPlaceholder;
-    }
-
-    function renderStatusSummary(data) {
-      statusSummaryEl.innerHTML = buildAdminStatusSummary(data).map(item => `
-        <article class="status-card ${escapeHtml(item.tone)}">
-          <div class="status-label">${escapeHtml(item.label)}</div>
-          <div class="status-value">${escapeHtml(item.value)}</div>
-          <div class="status-detail">${escapeHtml(item.detail)}</div>
-        </article>
-      `).join('');
     }
 
     function getSelectedConfigMode() {
@@ -983,6 +1057,46 @@
       return payload;
     }
 
+    function armDeleteButton(button, message) {
+      if (button.dataset.confirm === 'true') {
+        window.clearTimeout(Number(button.dataset.confirmTimer || 0));
+        delete button.dataset.confirm;
+        delete button.dataset.confirmTimer;
+        button.classList.remove('confirming');
+        return true;
+      }
+
+      button.dataset.confirm = 'true';
+      button.dataset.originalText = button.textContent;
+      button.textContent = '确认删除';
+      button.classList.add('confirming');
+      setMessage('info', message);
+
+      const timer = window.setTimeout(() => {
+        delete button.dataset.confirm;
+        delete button.dataset.confirmTimer;
+        button.classList.remove('confirming');
+        button.textContent = button.dataset.originalText || '删除';
+        delete button.dataset.originalText;
+      }, 5000);
+      button.dataset.confirmTimer = String(timer);
+      return false;
+    }
+
+    async function openExternalLink(url) {
+      try {
+        await requestJson('/admin/api/open-external', {
+          method: 'POST',
+          body: JSON.stringify({ url }),
+        });
+      } catch (error) {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          window.location.href = url;
+        }
+      }
+    }
+
     async function loadSnapshot(message = '', options = {}) {
       try {
         const request = buildConfigSnapshotRequest(Boolean(options.forceRefresh));
@@ -996,7 +1110,6 @@
           apiKeyStatusBadge.textContent = 'auth_token 无效';
           setMessage('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。');
           apiKeysListEl.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
-          statusSummaryEl.innerHTML = '<article class="status-card warn"><div class="status-label">管理鉴权</div><div class="status-value">无效</div><div class="status-detail">请使用正确的 auth_token 链接访问</div></article>';
           cardsEl.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
           return;
         }
@@ -1010,7 +1123,10 @@
       const configItem = buildConfigItemFromInputs();
       const result = await requestJson('/admin/api/configs', {
         method: 'POST',
-        body: JSON.stringify({ raw_json: JSON.stringify(configItem) }),
+        body: JSON.stringify({
+          config_type: getSelectedConfigMode(),
+          raw_json: JSON.stringify(configItem),
+        }),
       });
 
       snapshot = result;
@@ -1048,11 +1164,50 @@
       setMessage('info', 'Responses 模型映射已保存并热重载。');
     }
 
-    async function deleteApiKey(index) {
-      if (!window.confirm('确认删除这个 apikey 吗？')) {
+    function readPortSettingsFromInputs() {
+      const port = normalizePortValue(servicePortInput.value);
+      if (!port) {
+        throw new Error('服务端口必须是 1-65535 之间的数字');
+      }
+
+      const rawProxyPort = proxyPortInput.value.trim();
+      const proxyPort = rawProxyPort ? normalizePortValue(rawProxyPort) : null;
+      if (rawProxyPort && !proxyPort) {
+        throw new Error('代理端口必须是 1-65535 之间的数字，或留空');
+      }
+
+      return {
+        port,
+        proxy_port: proxyPort,
+      };
+    }
+
+    async function saveProxySettings() {
+      const settings = readPortSettingsFromInputs();
+      const result = await requestJson('/admin/api/settings', {
+        method: 'POST',
+        body: JSON.stringify(settings),
+      });
+
+      snapshot = result;
+      renderHeader(snapshot);
+      renderCards(snapshot);
+
+      const networkSettings = result && result.network_settings ? result.network_settings : {};
+      if (networkSettings.port_changed && networkSettings.next_port) {
+        setMessage('info', `端口配置已即时生效，正在跳转到 localhost:${networkSettings.next_port}。`);
+        window.setTimeout(() => {
+          const nextUrl = new URL(window.location.href);
+          nextUrl.port = String(networkSettings.next_port);
+          window.location.href = nextUrl.toString();
+        }, 700);
         return;
       }
 
+      setMessage('info', '端口配置已保存并即时生效。');
+    }
+
+    async function deleteApiKey(index) {
       const result = await requestJson(`/admin/api/apikeys/${index}`, {
         method: 'DELETE',
       });
@@ -1075,10 +1230,6 @@
     }
 
     async function deleteConfig(index) {
-      if (!window.confirm('确认删除这个配置项吗？')) {
-        return;
-      }
-
       const result = await requestJson(`/admin/api/configs/${index}`, {
         method: 'DELETE',
       });
@@ -1114,6 +1265,8 @@
     addButton.addEventListener('click', async () => {
       addButton.disabled = true;
       try {
+        setMessage('info', '正在写入配置项...');
+        await new Promise(resolve => window.requestAnimationFrame(resolve));
         await addConfig();
       } catch (error) {
         setMessage('error', error.message);
@@ -1144,6 +1297,17 @@
       }
     });
 
+    saveProxySettingsButton.addEventListener('click', async () => {
+      saveProxySettingsButton.disabled = true;
+      try {
+        await saveProxySettings();
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        saveProxySettingsButton.disabled = false;
+      }
+    });
+
     testResponseButton.addEventListener('click', async () => {
       testResponseButton.disabled = true;
       try {
@@ -1169,8 +1333,18 @@
     });
 
     document.addEventListener('click', async event => {
+      const externalLink = event.target.closest('a[data-open-external]');
+      if (externalLink) {
+        event.preventDefault();
+        await openExternalLink(externalLink.href);
+        return;
+      }
+
       const deleteApiKeyButton = event.target.closest('[data-action="delete-apikey"]');
       if (deleteApiKeyButton) {
+        if (!armDeleteButton(deleteApiKeyButton, '再次点击确认删除这个 apikey。')) {
+          return;
+        }
         deleteApiKeyButton.disabled = true;
         try {
           await deleteApiKey(deleteApiKeyButton.dataset.index);
@@ -1200,6 +1374,9 @@
         return;
       }
 
+      if (!armDeleteButton(button, '再次点击确认删除这个配置项。')) {
+        return;
+      }
       button.disabled = true;
       try {
         await deleteConfig(button.dataset.index);

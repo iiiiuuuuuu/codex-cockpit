@@ -136,6 +136,23 @@ function parseOpenAiConfigFile(raw) {
         throw new Error('配置文件 auth_token 必须是字符串');
     }
 
+    for (const fieldName of ['port', 'proxy_port']) {
+        if (parsed[fieldName] === undefined) {
+            continue;
+        }
+
+        const rawPort = parsed[fieldName];
+        const normalizedPort = typeof rawPort === 'number' ? String(rawPort) : rawPort;
+        if (typeof normalizedPort !== 'string' || !/^\d+$/.test(normalizedPort.trim())) {
+            throw new Error(`配置文件 ${fieldName} 必须是 1-65535 之间的端口号`);
+        }
+
+        const port = Number.parseInt(normalizedPort.trim(), 10);
+        if (port < 1 || port > 65535) {
+            throw new Error(`配置文件 ${fieldName} 必须是 1-65535 之间的端口号`);
+        }
+    }
+
     if (parsed.claude_code !== undefined) {
         if (!isPlainObject(parsed.claude_code)) {
             throw new Error('配置文件 claude_code 必须是对象');

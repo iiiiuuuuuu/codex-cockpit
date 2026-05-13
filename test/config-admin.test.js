@@ -22,6 +22,8 @@ const {
   extractRuntimeStatusTags,
   getActiveConfigLabel,
   extractResponseSummary,
+  normalizePortValue,
+  buildProxyAccessInfo,
 } = require('../public/config-admin.js');
 
 test('config admin hides the responses settings module', () => {
@@ -55,14 +57,33 @@ test('config admin keeps the upstream config column compact after adding activat
 
 test('config admin keeps all console controls after UI refresh', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
+  const accessControlStart = html.indexOf('<h2 class="panel-title">访问控制</h2>');
+  const accessControlEnd = html.indexOf('<div id="responsesSettingsSection"', accessControlStart);
+  const accessControlSection = accessControlStart >= 0 && accessControlEnd > accessControlStart
+    ? html.slice(accessControlStart, accessControlEnd)
+    : '';
 
   assert.match(html, /class="topbar"/);
-  assert.match(html, /id="statusSummary"/);
+  assert.doesNotMatch(html, /id="statusSummary"/);
   assert.match(html, /class="console-grid"/);
   assert.match(html, /id="addApiKeyButton"/);
+  assert.match(html, /id="proxySettingsPanel"/);
+  assert.match(html, /id="servicePortInput"/);
+  assert.match(html, /id="proxyPortInput"/);
+  assert.match(html, /id="proxyV1Url"/);
+  assert.match(html, /id="saveProxySettingsButton"/);
+  assert.match(html, /代理访问地址/);
+  assert.match(html, /即时生效/);
+  assert.doesNotMatch(html, /重启 App 后完整生效/);
   assert.match(html, /id="refreshButton"/);
   assert.match(html, /id="testResponseButton"/);
   assert.match(html, /id="addButton"/);
+  assert.match(html, /config_type:\s*getSelectedConfigMode\(\)/);
+  assert.match(html, /href="https:\/\/chatgpt\.com\/api\/auth\/session"/);
+  assert.match(html, /data-open-external="true"/);
+  assert.match(html, /\/admin\/api\/open-external/);
+  assert.match(html, /隐私模式登录 ChatGPT/);
+  assert.match(html, /不要退出该登录态/);
   assert.match(html, /name="configMode" value="token"/);
   assert.match(html, /name="configMode" value="apikey"/);
   assert.match(html, /name="apiKeySupport" value="gpt"/);
@@ -70,6 +91,29 @@ test('config admin keeps all console controls after UI refresh', () => {
   assert.match(html, /data-action="activate"/);
   assert.match(html, /data-action="delete"/);
   assert.match(html, /data-action="delete-apikey"/);
+  assert.match(html, /确认删除/);
+  assert.doesNotMatch(html, /window\.confirm/);
+  assert.ok(accessControlSection, 'access control section should be present');
+  assert.match(accessControlSection, /id="addApiKeyButton"/);
+});
+
+test('buildProxyAccessInfo builds displayed proxy URLs from runtime and configured ports', () => {
+  assert.equal(normalizePortValue(' 3009 '), 3009);
+  assert.equal(normalizePortValue('70000'), null);
+
+  const info = buildProxyAccessInfo({
+    runtime_port: 3009,
+    file_port: 3010,
+    proxy_port: '7890',
+  });
+
+  assert.equal(info.runtimePort, 3009);
+  assert.equal(info.configuredPort, 3010);
+  assert.equal(info.proxyPort, 7890);
+  assert.equal(info.v1Url, 'http://localhost:3009/v1');
+  assert.equal(info.configuredV1Url, 'http://localhost:3010/v1');
+  assert.equal(info.responsesUrl, 'http://localhost:3009/v1/responses');
+  assert.equal(info.portPendingRestart, true);
 });
 
 test('buildConfigSnapshotRequest uses GET when only loading the latest snapshot', () => {
@@ -200,8 +244,11 @@ test('getConfigGuideContent explains token JSON and apikey form entry separately
 
   const tokenStep = guide.steps.find(step => step.title === 'Token 模式');
   assert.match(tokenStep.description, /AuthSession JSON/);
+  assert.match(tokenStep.description, /隐私模式/);
+  assert.match(tokenStep.description, /不要退出该登录态/);
   assert.match(tokenStep.example, /"accessToken": "\.\.\."/);
   assert.equal(tokenStep.actionText, '打开 AuthSession 页面');
+  assert.equal(tokenStep.actionHref, 'https://chatgpt.com/api/auth/session');
 
   const apiKeyStep = guide.steps.find(step => step.title === 'API Key 模式');
   assert.match(apiKeyStep.description, /输入框/);

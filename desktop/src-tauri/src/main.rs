@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 const APP_DIR_NAME: &str = "Airouter";
 const RUNTIME_DIR_NAME: &str = "airouter";
@@ -42,7 +42,7 @@ struct ConfigShape {
 fn app_data_root() -> Result<PathBuf, String> {
     dirs::data_dir()
         .map(|dir| dir.join(APP_DIR_NAME).join(RUNTIME_DIR_NAME))
-        .ok_or_else(|| "无法定位 macOS Application Support 目录".to_string())
+        .ok_or_else(|| "无法定位系统应用数据目录".to_string())
 }
 
 fn resource_airouter_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -66,12 +66,16 @@ fn resource_airouter_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn node_target_name() -> Result<&'static str, String> {
-    if cfg!(target_arch = "aarch64") {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         Ok("node-aarch64-apple-darwin")
-    } else if cfg!(target_arch = "x86_64") {
+    } else if cfg!(all(target_os = "macos", target_arch = "x86_64")) {
         Ok("node-x86_64-apple-darwin")
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        Ok("node-x86_64-pc-windows-msvc.exe")
+    } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+        Ok("node-aarch64-pc-windows-msvc.exe")
     } else {
-        Err("当前 macOS 架构暂未内置 Node.js".to_string())
+        Err("当前系统架构暂未内置 Node.js".to_string())
     }
 }
 
@@ -88,17 +92,22 @@ fn node_sidecar_path(app: &AppHandle) -> Result<PathBuf, String> {
 
     let mut candidates = vec![
         resource_dir.join("binaries").join("node"),
+        resource_dir.join("binaries").join("node.exe"),
         resource_dir.join("binaries").join(target_name),
         resource_dir.join("node"),
+        resource_dir.join("node.exe"),
         resource_dir.join(target_name),
         manifest_dir.join("binaries").join("node"),
+        manifest_dir.join("binaries").join("node.exe"),
         manifest_dir.join("binaries").join(target_name),
     ];
 
     if let Some(exe_dir) = current_exe_dir {
         candidates.push(exe_dir.join("node"));
+        candidates.push(exe_dir.join("node.exe"));
         candidates.push(exe_dir.join(target_name));
         candidates.push(exe_dir.join("binaries").join("node"));
+        candidates.push(exe_dir.join("binaries").join("node.exe"));
         candidates.push(exe_dir.join("binaries").join(target_name));
     }
 
@@ -143,11 +152,79 @@ fn copy_dir_recursive(source: &Path, destination: &Path) -> io::Result<()> {
     Ok(())
 }
 
+fn copy_entry_replace(source: &Path, destination: &Path) -> Result<(), String> {
+    if destination.exists() {
+        if destination.is_dir() {
+            fs::remove_dir_all(destination)
+                .map_err(|error| format!("无法清理目录 {}: {error}", destination.display()))?;
+        } else {
+            fs::remove_file(destination)
+                .map_err(|error| format!("无法清理文件 {}: {error}", destination.display()))?;
+        }
+    }
+
+    if source.is_dir() {
+        copy_dir_recursive(source, destination).map_err(|error| {
+            format!(
+                "同步目录失败 {} -> {}: {error}",
+                source.display(),
+                destination.display()
+            )
+        })?;
+    } else if source.is_file() {
+        let parent = destination
+            .parent()
+            .ok_or_else(|| format!("无法定位目标父目录: {}", destination.display()))?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("无法创建目录 {}: {error}", parent.display()))?;
+        fs::copy(source, destination).map_err(|error| {
+            format!(
+                "同步文件失败 {} -> {}: {error}",
+                source.display(),
+                destination.display()
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn sync_runtime_resources(source: &Path, destination: &Path) -> Result<(), String> {
+    for entry in fs::read_dir(source)
+        .map_err(|error| format!("无法读取资源目录 {}: {error}", source.display()))?
+    {
+        let entry = entry.map_err(|error| format!("无法读取资源条目: {error}"))?;
+        let file_name = entry.file_name();
+        let file_name_text = file_name.to_string_lossy();
+        let target = destination.join(&file_name);
+
+        if file_name_text == "node_modules" {
+            if !target.exists() {
+                copy_dir_recursive(&entry.path(), &target).map_err(|error| {
+                    format!(
+                        "同步 node_modules 失败 {} -> {}: {error}",
+                        entry.path().display(),
+                        target.display()
+                    )
+                })?;
+            }
+            continue;
+        }
+
+        copy_entry_replace(&entry.path(), &target)?;
+    }
+
+    Ok(())
+}
+
 fn ensure_runtime(app: &AppHandle) -> Result<PathBuf, String> {
     let runtime_dir = app_data_root()?;
+    let resources = resource_airouter_dir(app)?;
+
     if !runtime_dir.exists() {
-        let resources = resource_airouter_dir(app)?;
         copy_dir_if_missing(&resources, &runtime_dir)?;
+    } else {
+        sync_runtime_resources(&resources, &runtime_dir)?;
     }
 
     let config_path = runtime_dir.join(CONFIG_FILE);
@@ -171,14 +248,34 @@ fn read_pid(runtime_dir: &Path) -> Option<u32> {
 }
 
 fn process_exists(pid: u32) -> bool {
-    Command::new("kill")
-        .arg("-0")
-        .arg(pid.to_string())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|status| status.success())
-        .unwrap_or(false)
+    #[cfg(target_os = "windows")]
+    {
+        return Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ exit 0 }} else {{ exit 1 }}"
+                ),
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("kill")
+            .arg("-0")
+            .arg(pid.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
 }
 
 fn parse_port(value: Option<Value>) -> Option<u16> {
@@ -208,6 +305,52 @@ fn build_admin_url(port: u16, auth_token: Option<&str>) -> String {
     }
 }
 
+fn is_local_admin_url(url: &tauri::Url) -> bool {
+    matches!(url.scheme(), "http" | "https")
+        && matches!(
+            url.host_str(),
+            Some("localhost") | Some("127.0.0.1") | Some("[::1]") | Some("::1")
+        )
+}
+
+fn open_external_url(url: &tauri::Url) {
+    if !matches!(url.scheme(), "http" | "https") || is_local_admin_url(url) {
+        return;
+    }
+
+    let url = url.to_string();
+    thread::spawn(move || {
+        #[cfg(target_os = "windows")]
+        let mut command = {
+            let mut command = Command::new("cmd");
+            command.args(["/C", "start", "", &url]);
+            command
+        };
+
+        #[cfg(target_os = "macos")]
+        let mut command = {
+            let mut command = Command::new("open");
+            command.arg(&url);
+            command
+        };
+
+        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+        let mut command = {
+            let mut command = Command::new("xdg-open");
+            command.arg(&url);
+            command
+        };
+
+        let _ = command.stdout(Stdio::null()).stderr(Stdio::null()).status();
+    });
+}
+
+fn admin_url_for_runtime(runtime_dir: &Path) -> Result<String, String> {
+    let config = read_config(runtime_dir)?;
+    let port = parse_port(config.port).unwrap_or(DEFAULT_PORT);
+    Ok(build_admin_url(port, config.auth_token.as_deref()))
+}
+
 fn tail_text(path: &Path, limit: usize) -> String {
     let Ok(raw) = fs::read_to_string(path) else {
         return "暂无日志".to_string();
@@ -227,27 +370,80 @@ fn parse_lsof_pid_output(output: &str) -> Vec<u32> {
 }
 
 fn listening_pids_for_port(port: u16) -> Result<Vec<u32>, String> {
-    let output = Command::new("lsof")
-        .arg(format!("-tiTCP:{port}"))
-        .arg("-sTCP:LISTEN")
-        .arg("-n")
-        .arg("-P")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|error| format!("无法检查端口 {port} 占用: {error}"))?;
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("netstat")
+            .args(["-ano", "-p", "TCP"])
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|error| format!("无法检查端口 {port} 占用: {error}"))?;
 
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        return Ok(parse_lsof_pid_output(&stdout));
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("检查端口 {port} 占用失败: {stderr}"));
+        }
+
+        return Ok(parse_windows_netstat_pid_output(
+            &String::from_utf8_lossy(&output.stdout),
+            port,
+        ));
     }
 
-    if output.stdout.is_empty() {
-        return Ok(Vec::new());
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = Command::new("lsof")
+            .arg(format!("-tiTCP:{port}"))
+            .arg("-sTCP:LISTEN")
+            .arg("-n")
+            .arg("-P")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|error| format!("无法检查端口 {port} 占用: {error}"))?;
+
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            return Ok(parse_lsof_pid_output(&stdout));
+        }
+
+        if output.stdout.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("检查端口 {port} 占用失败: {stderr}"))
+    }
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn address_uses_port(address: &str, port: u16) -> bool {
+    let suffix = format!(":{port}");
+    address.trim().ends_with(&suffix)
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn parse_windows_netstat_pid_output(output: &str, port: u16) -> Vec<u32> {
+    let mut pids = Vec::new();
+
+    for line in output.lines() {
+        let columns = line.split_whitespace().collect::<Vec<_>>();
+        if columns.len() < 5 || !columns[0].eq_ignore_ascii_case("TCP") {
+            continue;
+        }
+
+        if !columns[3].eq_ignore_ascii_case("LISTENING") || !address_uses_port(columns[1], port) {
+            continue;
+        }
+
+        if let Ok(pid) = columns[4].parse::<u32>() {
+            if !pids.contains(&pid) {
+                pids.push(pid);
+            }
+        }
     }
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    Err(format!("检查端口 {port} 占用失败: {stderr}"))
+    pids
 }
 
 fn wait_for_pid_exit(pid: u32, timeout: Duration) -> bool {
@@ -265,18 +461,42 @@ fn wait_for_pid_exit(pid: u32, timeout: Duration) -> bool {
 }
 
 fn signal_pid(pid: u32, signal: &str) -> Result<(), String> {
-    let status = Command::new("kill")
-        .arg(format!("-{signal}"))
-        .arg(pid.to_string())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .status()
-        .map_err(|error| format!("无法发送 {signal} 到 PID {pid}: {error}"))?;
+    #[cfg(target_os = "windows")]
+    {
+        let mut command = Command::new("taskkill");
+        command.args(["/PID", &pid.to_string(), "/T"]);
+        if signal == "KILL" {
+            command.arg("/F");
+        }
 
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("无法发送 {signal} 到 PID {pid}"))
+        let status = command
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .status()
+            .map_err(|error| format!("无法终止 PID {pid}: {error}"))?;
+
+        return if status.success() {
+            Ok(())
+        } else {
+            Err(format!("无法终止 PID {pid}"))
+        };
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let status = Command::new("kill")
+            .arg(format!("-{signal}"))
+            .arg(pid.to_string())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .status()
+            .map_err(|error| format!("无法发送 {signal} 到 PID {pid}: {error}"))?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!("无法发送 {signal} 到 PID {pid}"))
+        }
     }
 }
 
@@ -384,6 +604,36 @@ fn run_service_command(app: &AppHandle, action: &str) -> Result<(), String> {
     Err(format!("服务命令失败: {stdout}{stderr}"))
 }
 
+fn navigate_main_to_admin(app: &AppHandle) -> Result<(), String> {
+    let runtime_dir = ensure_runtime(app)?;
+    let admin_url = admin_url_for_runtime(&runtime_dir)?;
+    let parsed = tauri::Url::parse(&admin_url).map_err(|error| format!("管理地址无效: {error}"))?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "找不到主窗口".to_string())?;
+
+    window
+        .set_title("Airouter")
+        .map_err(|error| format!("无法更新窗口标题: {error}"))?;
+    window
+        .navigate(parsed)
+        .map_err(|error| format!("无法打开配置页面: {error}"))?;
+    Ok(())
+}
+
+fn start_and_show_config_page(app: &AppHandle) -> Result<ServiceStatus, String> {
+    run_service_command(app, "start")?;
+    navigate_main_to_admin(app)?;
+    let runtime_dir = ensure_runtime(app)?;
+    Ok(status_for_runtime(runtime_dir))
+}
+
+fn stop_service_quietly(app: &AppHandle) {
+    if let Err(error) = run_service_command(app, "stop") {
+        eprintln!("Airouter Desktop stop failed: {error}");
+    }
+}
+
 #[tauri::command]
 fn get_status(app: AppHandle) -> Result<ServiceStatus, String> {
     let runtime_dir = ensure_runtime(&app)?;
@@ -409,6 +659,11 @@ fn restart_service(app: AppHandle) -> Result<ServiceStatus, String> {
 }
 
 #[tauri::command]
+fn show_config_page(app: AppHandle) -> Result<ServiceStatus, String> {
+    start_and_show_config_page(&app)
+}
+
+#[tauri::command]
 fn read_recent_logs(app: AppHandle, limit: Option<usize>) -> Result<String, String> {
     let runtime_dir = ensure_runtime(&app)?;
     Ok(tail_text(&runtime_dir.join(LOG_FILE), limit.unwrap_or(160)))
@@ -416,28 +671,7 @@ fn read_recent_logs(app: AppHandle, limit: Option<usize>) -> Result<String, Stri
 
 #[tauri::command]
 fn open_admin_window(app: AppHandle) -> Result<(), String> {
-    let status = get_status(app.clone())?;
-    let url = status
-        .admin_url
-        .ok_or_else(|| "管理地址不可用，请先检查配置".to_string())?;
-    let parsed = tauri::Url::parse(&url).map_err(|error| format!("管理地址无效: {error}"))?;
-
-    if let Some(window) = app.get_webview_window("admin") {
-        window
-            .set_focus()
-            .map_err(|error| format!("无法聚焦管理窗口: {error}"))?;
-        window
-            .navigate(parsed)
-            .map_err(|error| format!("无法打开管理页: {error}"))?;
-        return Ok(());
-    }
-
-    WebviewWindowBuilder::new(&app, "admin", WebviewUrl::External(parsed))
-        .title("Airouter Admin")
-        .inner_size(1240.0, 820.0)
-        .build()
-        .map_err(|error| format!("无法创建管理窗口: {error}"))?;
-    Ok(())
+    navigate_main_to_admin(&app)
 }
 
 #[tauri::command]
@@ -479,19 +713,54 @@ fn reveal_runtime_dir(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .plugin(
+            tauri::plugin::Builder::<tauri::Wry, ()>::new("external-link")
+                .on_navigation(|_, url| {
+                    if is_local_admin_url(url) || !matches!(url.scheme(), "http" | "https") {
+                        true
+                    } else {
+                        open_external_url(url);
+                        false
+                    }
+                })
+                .build(),
+        )
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            thread::spawn(move || {
+                if let Err(error) = start_and_show_config_page(&app_handle) {
+                    eprintln!("Airouter Desktop startup failed: {error}");
+                    let _ = app_handle.emit("airouter-startup-error", error);
+                }
+            });
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, WindowEvent::CloseRequested { .. }) {
+                let app = window.app_handle().clone();
+                stop_service_quietly(&app);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_status,
             start_service,
             stop_service,
             restart_service,
+            show_config_page,
             open_admin_window,
             open_admin_in_browser,
             reveal_runtime_dir,
             read_recent_logs
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Airouter Desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Airouter Desktop");
+
+    app.run(|app_handle, event| {
+        if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit) {
+            stop_service_quietly(app_handle);
+        }
+    });
 }
 
 fn main() {
@@ -551,6 +820,18 @@ mod tests {
             parse_lsof_pid_output("123\n 456 \nnot-a-pid\n789\n"),
             vec![123, 456, 789]
         );
+    }
+
+    #[test]
+    fn parses_windows_netstat_pid_output() {
+        let output = r#"
+  Proto  Local Address          Foreign Address        State           PID
+  TCP    0.0.0.0:3009           0.0.0.0:0              LISTENING       1234
+  TCP    [::]:3009              [::]:0                 LISTENING       1234
+  TCP    127.0.0.1:3010         0.0.0.0:0              LISTENING       9999
+"#;
+
+        assert_eq!(parse_windows_netstat_pid_output(output, 3009), vec![1234]);
     }
 
     #[test]

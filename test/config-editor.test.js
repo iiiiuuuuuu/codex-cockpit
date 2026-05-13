@@ -70,6 +70,7 @@ test('addConfigItem appends a token config and preserves top-level settings', ()
 
 test('buildImportedConfigItem extracts token fields from auth session JSON', () => {
   const imported = buildImportedConfigItem('token', {
+    type: 'codex',
     user: {
       email: 'user@example.com',
     },
@@ -183,6 +184,35 @@ test('updateConfigSettings normalizes top-level apikeys and auth_token', () => {
   assert.equal(cleared.auth_token, '');
   assert.equal(cleared.configs.length, 1);
   assert.equal(cleared.configs[0].description, 'primary');
+});
+
+test('updateConfigSettings normalizes service port and proxy port settings', () => {
+  const next = updateConfigSettings(createTokenConfig(), {
+    port: ' 3010 ',
+    proxy_port: ' 7890 ',
+  });
+
+  assert.equal(next.port, 3010);
+  assert.equal(next.proxy_port, 7890);
+
+  const clearedProxy = updateConfigSettings(next, {
+    proxy_port: '',
+  });
+
+  assert.equal(clearedProxy.port, 3010);
+  assert.equal(clearedProxy.proxy_port, undefined);
+});
+
+test('updateConfigSettings rejects invalid port settings', () => {
+  assert.throws(() => {
+    updateConfigSettings(createTokenConfig(), {
+      port: '70000',
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /port 必须是 1-65535/);
+    return true;
+  });
 });
 
 test('updateConfigSettings normalizes responses.model_aliases and preserves other settings', () => {

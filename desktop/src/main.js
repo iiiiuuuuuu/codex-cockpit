@@ -1,134 +1,68 @@
 (function () {
-  const selectors = {
-    statusPill: '#statusPill',
-    serviceState: '#serviceState',
-    servicePort: '#servicePort',
-    servicePid: '#servicePid',
-    configState: '#configState',
-    adminUrl: '#adminUrl',
-    runtimeDir: '#runtimeDir',
-    lastMessage: '#lastMessage',
-    logOutput: '#logOutput',
-    startBtn: '#startBtn',
-    stopBtn: '#stopBtn',
-    restartBtn: '#restartBtn',
-    openAdminBtn: '#openAdminBtn',
-    openBrowserBtn: '#openBrowserBtn',
-    revealBtn: '#revealBtn',
-    refreshBtn: '#refreshBtn'
-  };
+  const panel = document.querySelector('#bootPanel');
+  const headline = document.querySelector('#headline');
+  const message = document.querySelector('#message');
+  const actions = document.querySelector('#actions');
+  const retryBtn = document.querySelector('#retryBtn');
+  const logBtn = document.querySelector('#logBtn');
+  const revealBtn = document.querySelector('#revealBtn');
+  const logOutput = document.querySelector('#logOutput');
 
-  const $ = (selector) => document.querySelector(selector);
-  const invoke = (...args) => {
+  function invoke(command, args) {
     const api = window.__TAURI__?.core;
     if (!api?.invoke) {
-      throw new Error('Tauri API 尚未注入，请在桌面应用中打开此页面');
+      throw new Error('请在 Airouter 桌面应用中打开');
     }
-    return api.invoke(...args);
-  };
-
-  const actionButtons = [
-    selectors.startBtn,
-    selectors.stopBtn,
-    selectors.restartBtn,
-    selectors.openAdminBtn,
-    selectors.openBrowserBtn,
-    selectors.revealBtn,
-    selectors.refreshBtn
-  ].map($);
-
-  let busy = false;
-  let latestStatus = null;
-
-  function text(value, fallback = '-') {
-    return value === undefined || value === null || value === '' ? fallback : String(value);
+    return api.invoke(command, args);
   }
 
-  function setBusy(nextBusy) {
-    busy = nextBusy;
-    actionButtons.forEach((button) => {
-      button.disabled = busy;
-    });
+  function showLoading(text = '启动本地服务') {
+    panel.dataset.state = 'loading';
+    headline.textContent = text;
+    message.textContent = '服务就绪后会直接进入管理配置页面。';
+    actions.hidden = true;
+    logOutput.hidden = true;
   }
 
-  function renderError(message) {
-    const pill = $(selectors.statusPill);
-    pill.dataset.status = 'error';
-    pill.querySelector('strong').textContent = '异常';
-    $(selectors.lastMessage).textContent = message;
+  function showError(error) {
+    panel.dataset.state = 'error';
+    headline.textContent = '没有打开配置页';
+    message.textContent = String(error || '本地服务启动失败，请查看最近日志。');
+    actions.hidden = false;
   }
 
-  function renderStatus(status) {
-    latestStatus = status;
-    const pill = $(selectors.statusPill);
-    const pillLabel = pill.querySelector('strong');
-    const statusName = status.running ? '运行中' : '已停止';
-
-    pill.dataset.status = status.running ? 'running' : 'stopped';
-    pillLabel.textContent = statusName;
-
-    $(selectors.serviceState).textContent = statusName;
-    $(selectors.servicePort).textContent = text(status.port);
-    $(selectors.servicePid).textContent = text(status.pid);
-    $(selectors.configState).textContent = status.hasConfig && status.configValid ? '已就绪' : '需检查';
-    $(selectors.adminUrl).textContent = text(status.adminUrl);
-    $(selectors.runtimeDir).textContent = text(status.runtimeDir);
-    $(selectors.lastMessage).textContent = text(status.message);
-    $(selectors.logOutput).textContent = text(status.logs, '暂无日志');
-  }
-
-  async function refreshStatus() {
+  async function retry() {
+    showLoading('重新连接配置页');
     try {
-      const status = await invoke('get_status');
-      renderStatus(status);
+      await invoke('show_config_page');
     } catch (error) {
-      renderError(String(error));
+      showError(error);
     }
   }
 
-  async function refreshLogs() {
+  async function showLogs() {
     try {
-      const logs = await invoke('read_recent_logs', { limit: 160 });
-      $(selectors.logOutput).textContent = text(logs, '暂无日志');
+      const logs = await invoke('read_recent_logs', { limit: 120 });
+      logOutput.textContent = logs || '暂无日志';
     } catch (error) {
-      $(selectors.logOutput).textContent = String(error);
+      logOutput.textContent = String(error);
     }
+    logOutput.hidden = false;
   }
 
-  async function runAction(command) {
-    if (busy) {
-      return;
-    }
+  retryBtn.addEventListener('click', retry);
+  logBtn.addEventListener('click', showLogs);
+  revealBtn.addEventListener('click', () => invoke('reveal_runtime_dir').catch(showError));
 
-    setBusy(true);
-    try {
-      const status = await invoke(command);
-      if (status) {
-        renderStatus(status);
-      } else {
-        await refreshStatus();
-      }
-    } catch (error) {
-      renderError(String(error));
-      await refreshLogs();
-    } finally {
-      setBusy(false);
-    }
-  }
+  window.__TAURI__?.event
+    ?.listen('airouter-startup-error', (event) => showError(event.payload))
+    .catch(showError);
 
-  $(selectors.startBtn).addEventListener('click', () => runAction('start_service'));
-  $(selectors.stopBtn).addEventListener('click', () => runAction('stop_service'));
-  $(selectors.restartBtn).addEventListener('click', () => runAction('restart_service'));
-  $(selectors.openAdminBtn).addEventListener('click', () => runAction('open_admin_window'));
-  $(selectors.openBrowserBtn).addEventListener('click', () => runAction('open_admin_in_browser'));
-  $(selectors.revealBtn).addEventListener('click', () => runAction('reveal_runtime_dir'));
-  $(selectors.refreshBtn).addEventListener('click', refreshStatus);
-
-  window.addEventListener('focus', refreshStatus);
-  refreshStatus();
-  setInterval(() => {
-    if (!busy && latestStatus?.running) {
-      refreshStatus();
+  window.setTimeout(() => {
+    if (panel.dataset.state === 'loading') {
+      headline.textContent = '仍在等待本地服务';
+      message.textContent = '如果长时间停留在这里，可以重新进入配置页或查看日志。';
+      actions.hidden = false;
     }
-  }, 5000);
+  }, 12000);
 })();

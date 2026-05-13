@@ -61,6 +61,24 @@ function normalizeResponsesModelAliases(value) {
     return normalized;
 }
 
+function normalizePortSetting(value, fieldName, options = {}) {
+    if ((value === null || value === undefined || String(value).trim() === '') && options.optional) {
+        return null;
+    }
+
+    const normalized = typeof value === 'number' ? String(value) : normalizeString(value);
+    if (!/^\d+$/.test(normalized)) {
+        throw new ConfigEditorError(`配置设置 ${fieldName} 必须是 1-65535 之间的端口号`);
+    }
+
+    const port = Number.parseInt(normalized, 10);
+    if (port < 1 || port > 65535) {
+        throw new ConfigEditorError(`配置设置 ${fieldName} 必须是 1-65535 之间的端口号`);
+    }
+
+    return port;
+}
+
 function getEditableFields(type) {
     if (type === 'apikey') {
         return ['type', 'apikey', 'base_url', 'description', 'support'];
@@ -213,6 +231,19 @@ function updateConfigSettings(parsed, settings) {
 
     if (Object.prototype.hasOwnProperty.call(settings, 'auth_token')) {
         nextParsed.auth_token = normalizeString(settings.auth_token);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(settings, 'port')) {
+        nextParsed.port = normalizePortSetting(settings.port, 'port');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(settings, 'proxy_port')) {
+        const proxyPort = normalizePortSetting(settings.proxy_port, 'proxy_port', { optional: true });
+        if (proxyPort === null) {
+            delete nextParsed.proxy_port;
+        } else {
+            nextParsed.proxy_port = proxyPort;
+        }
     }
 
     if (Object.prototype.hasOwnProperty.call(settings, 'responses')) {

@@ -12,22 +12,48 @@ const platform = os.platform();
 const arch = os.arch();
 
 const targets = {
-  arm64: {
-    archiveArch: 'arm64',
-    tauriName: 'node-aarch64-apple-darwin'
+  darwin: {
+    archiveExt: 'tar.gz',
+    executablePath: ['bin', 'node'],
+    arches: {
+      arm64: {
+        archiveArch: 'arm64',
+        tauriName: 'node-aarch64-apple-darwin',
+        aliasName: 'node'
+      },
+      x64: {
+        archiveArch: 'x64',
+        tauriName: 'node-x86_64-apple-darwin',
+        aliasName: 'node'
+      }
+    }
   },
-  x64: {
-    archiveArch: 'x64',
-    tauriName: 'node-x86_64-apple-darwin'
+  win32: {
+    archiveExt: 'zip',
+    executablePath: ['node.exe'],
+    arches: {
+      x64: {
+        archiveArch: 'x64',
+        tauriName: 'node-x86_64-pc-windows-msvc.exe',
+        aliasName: 'node.exe'
+      },
+      arm64: {
+        archiveArch: 'arm64',
+        tauriName: 'node-aarch64-pc-windows-msvc.exe',
+        aliasName: 'node.exe'
+      }
+    }
   }
 };
 
-if (platform !== 'darwin') {
-  throw new Error(`Airouter Desktop currently prepares bundled Node only on macOS, got ${platform}`);
+const platformTarget = targets[platform];
+if (!platformTarget) {
+  throw new Error(`Airouter Desktop currently prepares bundled Node only on macOS and Windows, got ${platform}`);
 }
 
-if (!targets[arch]) {
-  throw new Error(`Unsupported macOS architecture for bundled Node: ${arch}`);
+const target = platformTarget.arches[arch];
+if (!target) {
+  throw new Error(`Unsupported ${platform} architecture for bundled Node: ${arch}`);
 }
 
 async function exists(filePath) {
@@ -48,14 +74,14 @@ async function download(url, destination) {
   await fs.writeFile(destination, bytes);
 }
 
-const target = targets[arch];
-const archiveName = `node-${nodeVersion}-darwin-${target.archiveArch}.tar.gz`;
+const nodePlatformName = platform === 'win32' ? 'win' : platform;
+const archiveName = `node-${nodeVersion}-${nodePlatformName}-${target.archiveArch}.${platformTarget.archiveExt}`;
 const cacheDir = path.join(os.homedir(), '.cache', 'airouter-desktop');
 const archivePath = path.join(cacheDir, archiveName);
-const extractedDir = path.join(cacheDir, archiveName.replace(/\.tar\.gz$/, ''));
-const sourceNode = path.join(extractedDir, 'bin', 'node');
+const extractedDir = path.join(cacheDir, archiveName.replace(/\.(tar\.gz|zip)$/, ''));
+const sourceNode = path.join(extractedDir, ...platformTarget.executablePath);
 const destinationNode = path.join(binariesDir, target.tauriName);
-const devNodeAlias = path.join(binariesDir, 'node');
+const devNodeAlias = path.join(binariesDir, target.aliasName);
 const url = `https://nodejs.org/dist/${nodeVersion}/${archiveName}`;
 
 await fs.mkdir(cacheDir, { recursive: true });
@@ -67,7 +93,10 @@ if (!(await exists(sourceNode))) {
     await download(url, archivePath);
   }
 
-  const result = spawnSync('tar', ['-xzf', archivePath, '-C', cacheDir], { stdio: 'inherit' });
+  const tarArgs = platformTarget.archiveExt === 'zip'
+    ? ['-xf', archivePath, '-C', cacheDir]
+    : ['-xzf', archivePath, '-C', cacheDir];
+  const result = spawnSync('tar', tarArgs, { stdio: 'inherit' });
   if (result.status !== 0) {
     throw new Error(`Failed to extract ${archivePath}`);
   }
@@ -75,7 +104,9 @@ if (!(await exists(sourceNode))) {
 
 await fs.copyFile(sourceNode, destinationNode);
 await fs.copyFile(sourceNode, devNodeAlias);
-await fs.chmod(destinationNode, 0o755);
-await fs.chmod(devNodeAlias, 0o755);
+if (platform !== 'win32') {
+  await fs.chmod(destinationNode, 0o755);
+  await fs.chmod(devNodeAlias, 0o755);
+}
 
 console.log(`Prepared bundled Node sidecar at ${destinationNode}`);

@@ -269,10 +269,14 @@ test('parseOpenAiConfigFile accepts optional top-level apikeys and auth_token fi
   const parsed = parseOpenAiConfigFile(JSON.stringify(createBaseConfig({
     apikeys: ['router-secret', 'backup-secret'],
     auth_token: 'admin-token',
+    port: '3010',
+    proxy_port: 7890,
   })));
 
   assert.deepEqual(parsed.apikeys, ['router-secret', 'backup-secret']);
   assert.equal(parsed.auth_token, 'admin-token');
+  assert.equal(parsed.port, '3010');
+  assert.equal(parsed.proxy_port, 7890);
 });
 
 test('parseOpenAiConfigFile rejects a non-array apikeys field', () => {
@@ -295,6 +299,18 @@ test('parseOpenAiConfigFile rejects a non-string auth_token field', () => {
   }, err => {
     assert.equal(err instanceof Error, true);
     assert.match(err.message, /auth_token 必须是字符串/);
+    return true;
+  });
+});
+
+test('parseOpenAiConfigFile rejects invalid port fields', () => {
+  assert.throws(() => {
+    parseOpenAiConfigFile(JSON.stringify(createBaseConfig({
+      proxy_port: 70000,
+    })));
+  }, err => {
+    assert.equal(err instanceof Error, true);
+    assert.match(err.message, /proxy_port 必须是 1-65535/);
     return true;
   });
 });

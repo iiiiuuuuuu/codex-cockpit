@@ -1,14 +1,15 @@
 # Airouter Desktop
 
-macOS-only Tauri wrapper for the existing airouter Node.js service.
+Tauri wrapper for the existing airouter Node.js service.
 
-The desktop app keeps runtime state in:
+The desktop app keeps runtime state in the platform application data directory:
 
 ```text
-~/Library/Application Support/Airouter/airouter/
+macOS:   ~/Library/Application Support/Airouter/airouter/
+Windows: %APPDATA%\Airouter\airouter\
 ```
 
-It does not modify the root service files. Build preparation copies the service into `desktop/src-tauri/resources/airouter/` and places macOS Node.js sidecars in `desktop/src-tauri/binaries/`.
+It does not modify the root service files. Build preparation copies the service into `desktop/src-tauri/resources/airouter/` and places the platform Node.js sidecar in `desktop/src-tauri/binaries/`.
 
 ## Development
 
@@ -34,3 +35,12 @@ node scripts/prepare-node.mjs
 cd desktop
 npm run build
 ```
+
+Build only the current platform app bundle:
+
+```bash
+npm run build:macos
+npm run build:windows
+```
+
+`build:macos` creates a signed `.app` bundle for local packaging. `build:windows` creates a Windows NSIS installer (`.exe`). GitHub Releases are produced by the tag workflow in `.github/workflows/release.yml`.

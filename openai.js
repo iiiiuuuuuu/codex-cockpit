@@ -4,6 +4,7 @@
 console.log("starting")
 const fs = require('node:fs');
 const path = require('path');
+const { spawn } = require('node:child_process');
 const zlib = require('zlib');
 const express = require('express');
 const { createUpstreamRequest, consumeResponseBody } = require('./app/upstream-request');
@@ -47,7 +48,7 @@ const {
 } = require('./app/request-auth');
 // https://chatgpt.com/api/auth/session
 // ==================== 配置 ====================
-const PORT = process.env.PORT || 3009;
+let runtimePort = normalizeRuntimePort(process.env.PORT, 3009);
 let CONFIG_FILE_NAME = process.env.CONFIG || 'openai.json';
 const CONFIG_FILE = path.join(__dirname, CONFIG_FILE_NAME);
 const CONTROL_TOKEN = process.env.AIROUTER_CONTROL_TOKEN || '';
@@ -163,6 +164,8 @@ function loadApiConfigs() {
     const parsed = readParsedConfigFile(CONFIG_FILE);
     const ensured = ensureSecuritySettings(parsed);
     const finalParsed = ensured.changed ? writeParsedConfigFile(CONFIG_FILE, ensured.parsed) : ensured.parsed;
+    runtimePort = normalizeRuntimePort(finalParsed.port, runtimePort);
+    applyProxyEnvironment(finalParsed.proxy_port);
     return buildLoadedConfig(finalParsed);
 }
 
@@ -182,6 +185,36 @@ let shuttingDown = false;
 const activeSockets = new Set();
 
 // ==================== 工具函数 ====================
+function normalizeRuntimePort(value, fallback = 3009) {
+    const normalized = typeof value === 'number' ? String(value) : String(value ?? '').trim();
+    if (!/^\d+$/.test(normalized)) {
+        return fallback;
+    }
+
+    const port = Number.parseInt(normalized, 10);
+    return port >= 1 && port <= 65535 ? port : fallback;
+}
+
+function applyProxyEnvironment(proxyPort) {
+    const port = normalizeRuntimePort(proxyPort, 0);
+    const proxyKeys = ['http_proxy', 'https_proxy', 'all_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY'];
+
+    if (!port) {
+        for (const key of proxyKeys) {
+            delete process.env[key];
+        }
+        return;
+    }
+
+    const httpProxy = `http://127.0.0.1:${port}`;
+    process.env.http_proxy = httpProxy;
+    process.env.https_proxy = httpProxy;
+    process.env.HTTP_PROXY = httpProxy;
+    process.env.HTTPS_PROXY = httpProxy;
+    process.env.all_proxy = `socks5://127.0.0.1:${port}`;
+    process.env.ALL_PROXY = `socks5://127.0.0.1:${port}`;
+}
+
 function log(...args) {
     const timestamp = new Date().toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
@@ -199,7 +232,7 @@ function error(...args) {
 }
 
 function buildLocalBaseUrl() {
-    return `http://localhost:${PORT}`;
+    return `http://localhost:${runtimePort}`;
 }
 
 function formatRequestBody(bodyBuffer, headers) {
@@ -627,6 +660,77 @@ function persistConfigWithoutRuntimeReload(nextParsed) {
     return savedParsed;
 }
 
+function listenOnPort(port) {
+    return new Promise((resolve, reject) => {
+        server = app.listen(port, () => {
+            runtimePort = port;
+            log(`端口配置已即时生效: ${buildLocalBaseUrl()}`);
+            resolve();
+        });
+
+        server.once('error', err => {
+            reject(err);
+        });
+
+        server.on('connection', socket => {
+            activeSockets.add(socket);
+            socket.on('close', () => {
+                activeSockets.delete(socket);
+            });
+        });
+    });
+}
+
+function closeCurrentServer() {
+    if (!server) {
+        return Promise.resolve();
+    }
+
+    const closingServer = server;
+    server = null;
+
+    if (typeof closingServer.closeIdleConnections === 'function') {
+        closingServer.closeIdleConnections();
+    }
+
+    return new Promise((resolve, reject) => {
+        closingServer.close(err => {
+            if (err) {
+                reject(err);
+                return;
+            }
+
+            resolve();
+        });
+
+        setTimeout(() => {
+            for (const socket of activeSockets) {
+                socket.destroy();
+            }
+        }, 1_000).unref();
+    });
+}
+
+async function applyRuntimeNetworkSettings(nextParsed, previousPort) {
+    applyProxyEnvironment(nextParsed.proxy_port);
+
+    const nextPort = normalizeRuntimePort(nextParsed.port, runtimePort);
+    if (nextPort === previousPort) {
+        return;
+    }
+
+    await closeCurrentServer();
+    await listenOnPort(nextPort);
+}
+
+function scheduleRuntimeNetworkSettings(nextParsed, previousPort) {
+    setTimeout(() => {
+        applyRuntimeNetworkSettings(nextParsed, previousPort).catch(err => {
+            error('端口配置即时生效失败:', err.message);
+        });
+    }, 120).unref();
+}
+
 function serializeAccountStatus(accountStatus) {
     if (!accountStatus) {
         return null;
@@ -660,7 +764,7 @@ function buildConfigAdminResponse() {
         config_file: CONFIG_FILE_NAME,
         config_path: CONFIG_FILE,
         mode: configType,
-        runtime_port: Number(PORT),
+        runtime_port: Number(runtimePort),
         file_port: currentParsedConfig.port ?? null,
         proxy_port: currentParsedConfig.proxy_port ?? null,
         apikeys: configuredApiKeys,
@@ -781,6 +885,33 @@ function requireAdminAuthToken(req, res, next) {
     }
 
     next();
+}
+
+function isAllowedExternalOpenUrl(rawUrl) {
+    try {
+        const parsed = new URL(String(rawUrl || ''));
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (err) {
+        return false;
+    }
+}
+
+function openExternalUrl(rawUrl) {
+    if (!isAllowedExternalOpenUrl(rawUrl)) {
+        throw new ConfigEditorError('只能打开 http/https 链接');
+    }
+
+    const opener = process.platform === 'darwin'
+        ? { command: 'open', args: [rawUrl] }
+        : process.platform === 'win32'
+            ? { command: 'cmd', args: ['/c', 'start', '', rawUrl] }
+            : { command: 'xdg-open', args: [rawUrl] };
+
+    const child = spawn(opener.command, opener.args, {
+        detached: true,
+        stdio: 'ignore',
+    });
+    child.unref();
 }
 
 function parseConfigItemJson(rawJson) {
@@ -1313,7 +1444,12 @@ app.post('/admin/api/configs', async (req, res) => {
     try {
         const parsed = readParsedConfigFile(CONFIG_FILE);
         const rawItem = parseConfigItemJson(req.body && req.body.raw_json);
-        const inputItem = buildImportedConfigItem(rawItem);
+        const configType = req.body && typeof req.body.config_type === 'string'
+            ? req.body.config_type.trim()
+            : '';
+        const inputItem = configType
+            ? buildImportedConfigItem(configType, rawItem)
+            : buildImportedConfigItem(rawItem);
         const validatedRuntimeConfig = await validateConfigItemBeforeAdd(null, inputItem);
         const nextParsed = addConfigItem(parsed, inputItem);
         await persistAndReloadConfig(nextParsed, 'admin_create', {
@@ -1378,18 +1514,60 @@ app.delete('/admin/api/apikeys/:index', async (req, res) => {
 app.post('/admin/api/settings', async (req, res) => {
     try {
         const parsed = readParsedConfigFile(CONFIG_FILE);
-        const nextParsed = updateConfigSettings(parsed, {
-            responses: req.body && req.body.responses ? req.body.responses : {}
-        });
+        const previousPort = runtimePort;
+        const settings = {};
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+
+        for (const field of ['port', 'proxy_port', 'responses']) {
+            if (Object.prototype.hasOwnProperty.call(body, field)) {
+                settings[field] = body[field];
+            }
+        }
+
+        const nextParsed = updateConfigSettings(parsed, settings);
 
         await persistAndReloadConfig(nextParsed, 'admin_update_settings', {
             skipQuotaRefresh: true
         });
-        res.status(200).json(buildConfigAdminResponse());
+
+        const nextPort = normalizeRuntimePort(nextParsed.port, runtimePort);
+        if (nextPort === previousPort) {
+            applyProxyEnvironment(nextParsed.proxy_port);
+        }
+
+        const responseBody = {
+            ...buildConfigAdminResponse(),
+            network_settings: {
+                applied_immediately: true,
+                previous_port: previousPort,
+                next_port: nextPort,
+                port_changed: nextPort !== previousPort,
+                proxy_port: nextParsed.proxy_port ?? null
+            }
+        };
+
+        res.status(200).json(responseBody);
+        if (nextPort !== previousPort) {
+            scheduleRuntimeNetworkSettings(nextParsed, previousPort);
+        }
     } catch (err) {
         const statusCode = err instanceof ConfigEditorError ? 400 : 500;
         res.status(statusCode).json({
             error: statusCode === 400 ? '配置设置更新失败' : '配置更新失败',
+            details: err.message
+        });
+    }
+});
+
+app.post('/admin/api/open-external', (req, res) => {
+    try {
+        const url = req.body && req.body.url;
+        openExternalUrl(url);
+        res.status(204).end();
+    } catch (err) {
+        const statusCode = err instanceof ConfigEditorError ? 400 : 500;
+        res.status(statusCode).json({
+            error: statusCode === 400 ? '链接打开失败' : '系统打开链接失败',
             details: err.message
         });
     }
@@ -1452,7 +1630,8 @@ async function startServer() {
     const loadedConfig = loadApiConfigs();
     applyLoadedConfig(loadedConfig);
 
-    server = app.listen(PORT, () => {
+    await listenOnPort(runtimePort);
+    {
         const localBaseUrl = buildLocalBaseUrl();
 
         log('='.repeat(70));
@@ -1496,14 +1675,7 @@ async function startServer() {
         })().catch(err => {
             error('初始化账号信息失败:', err.message);
         });
-    });
-
-    server.on('connection', socket => {
-        activeSockets.add(socket);
-        socket.on('close', () => {
-            activeSockets.delete(socket);
-        });
-    });
+    }
 
     startControlWatcher();
 }

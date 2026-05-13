@@ -3,81 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Airouter Desktop</title>
+    <title>Airouter</title>
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Local Control Surface</p>
-          <h1>Airouter Desktop</h1>
+    <main class="boot-shell" aria-live="polite">
+      <section class="boot-panel" data-state="loading" id="bootPanel">
+        <div class="brand-row">
+          <span class="mark" aria-hidden="true"></span>
+          <span class="brand">Airouter</span>
         </div>
-        <div class="status-pill" data-status="unknown" id="statusPill">
-          <span></span>
-          <strong>检查中</strong>
+        <div class="copy">
+          <p class="eyebrow">正在打开配置页</p>
+          <h1 id="headline">启动本地服务</h1>
+          <p id="message">服务就绪后会直接进入管理配置页面。</p>
         </div>
-      </header>
-
-      <section class="status-grid" aria-label="服务状态">
-        <article class="metric">
-          <span>服务</span>
-          <strong id="serviceState">-</strong>
-        </article>
-        <article class="metric">
-          <span>端口</span>
-          <strong id="servicePort">-</strong>
-        </article>
-        <article class="metric">
-          <span>PID</span>
-          <strong id="servicePid">-</strong>
-        </article>
-        <article class="metric">
-          <span>配置</span>
-          <strong id="configState">-</strong>
-        </article>
-      </section>
-
-      <section class="workspace">
-        <section class="panel control-panel" aria-label="服务操作">
-          <div class="section-heading">
-            <p class="eyebrow">Service</p>
-            <h2>运行控制</h2>
-          </div>
-          <div class="action-grid">
-            <button class="primary" id="startBtn" type="button">启动</button>
-            <button id="stopBtn" type="button">停止</button>
-            <button id="restartBtn" type="button">重启</button>
-            <button id="openAdminBtn" type="button">应用内打开管理页</button>
-            <button id="openBrowserBtn" type="button">浏览器打开</button>
-            <button id="revealBtn" type="button">打开运行目录</button>
-          </div>
-          <dl class="details">
-            <div>
-              <dt>管理地址</dt>
-              <dd id="adminUrl">-</dd>
-            </div>
-            <div>
-              <dt>运行目录</dt>
-              <dd id="runtimeDir">-</dd>
-            </div>
-            <div>
-              <dt>最近消息</dt>
-              <dd id="lastMessage">-</dd>
-            </div>
-          </dl>
-        </section>
-
-        <section class="panel log-panel" aria-label="最近日志">
-          <div class="section-heading row">
-            <div>
-              <p class="eyebrow">Logs</p>
-              <h2>最近日志</h2>
-            </div>
-            <button class="ghost" id="refreshBtn" type="button">刷新</button>
-          </div>
-          <pre id="logOutput">正在读取日志...</pre>
-        </section>
+        <div class="progress" aria-hidden="true"><span></span></div>
+        <div class="actions" id="actions" hidden>
+          <button class="primary" id="retryBtn" type="button">重新进入配置页</button>
+          <button id="logBtn" type="button">查看最近日志</button>
+          <button id="revealBtn" type="button">打开运行目录</button>
+        </div>
+        <pre id="logOutput" hidden></pre>
       </section>
     </main>
     <script src="./src/main.js"></script>
