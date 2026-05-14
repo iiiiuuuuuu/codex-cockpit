@@ -5,6 +5,7 @@ console.log("starting")
 const fs = require('node:fs');
 const path = require('path');
 const { spawn } = require('node:child_process');
+const { inspect } = require('node:util');
 const zlib = require('zlib');
 const express = require('express');
 const { createUpstreamRequest, consumeResponseBody } = require('./app/upstream-request');
@@ -284,6 +285,65 @@ function warn(...args) {
         hour12: false
     });
     console.warn(`[${timestamp}]`, ...args);
+}
+
+const PROCESS_SAFETY_HANDLERS = Symbol.for('airouter.processSafetyHandlers');
+
+function formatProcessCrashReason(reason) {
+    if (reason instanceof Error) {
+        return reason.stack || reason.message;
+    }
+
+    if (typeof reason === 'string') {
+        return reason;
+    }
+
+    return inspect(reason, { depth: 3, breakLength: 120 });
+}
+
+function registerProcessSafetyHandlers(options = {}) {
+    const processLike = options.process || process;
+    const errorLogger = options.error || error;
+
+    if (processLike[PROCESS_SAFETY_HANDLERS]) {
+        return processLike[PROCESS_SAFETY_HANDLERS].unregister;
+    }
+
+    const handleUncaughtException = err => {
+        errorLogger('业务异常已捕获，服务继续运行:', formatProcessCrashReason(err));
+    };
+    const handleUnhandledRejection = reason => {
+        errorLogger('未处理的 Promise 异常已捕获，服务继续运行:', formatProcessCrashReason(reason));
+    };
+    const unregister = () => {
+        processLike.removeListener('uncaughtException', handleUncaughtException);
+        processLike.removeListener('unhandledRejection', handleUnhandledRejection);
+        delete processLike[PROCESS_SAFETY_HANDLERS];
+    };
+
+    processLike.on('uncaughtException', handleUncaughtException);
+    processLike.on('unhandledRejection', handleUnhandledRejection);
+    processLike[PROCESS_SAFETY_HANDLERS] = { unregister };
+
+    return unregister;
+}
+
+function reportBusinessRequestError(res, err, context = '业务请求处理失败', options = {}) {
+    const message = err && err.message ? err.message : String(err || 'unknown error');
+    const errorLogger = options.error || error;
+    errorLogger(`${context}:`, message);
+
+    if (res.headersSent) {
+        if (!res.writableEnded) {
+            res.end();
+        }
+        return;
+    }
+
+    res.status(500).json({
+        error: 'Internal Server Error',
+        message
+    });
 }
 
 function decodeResponseBody(bodyBuffer, contentEncoding) {
@@ -898,22 +958,62 @@ function isAllowedExternalOpenUrl(rawUrl) {
     }
 }
 
-function openExternalUrl(rawUrl) {
+function resolveExternalOpener(rawUrl, platform = process.platform) {
+    if (platform === 'darwin') {
+        return { command: 'open', args: [rawUrl] };
+    }
+
+    if (platform === 'win32') {
+        return { command: 'cmd', args: ['/c', 'start', '', rawUrl] };
+    }
+
+    return { command: 'xdg-open', args: [rawUrl] };
+}
+
+function openExternalUrl(rawUrl, options = {}) {
     if (!isAllowedExternalOpenUrl(rawUrl)) {
         throw new ConfigEditorError('只能打开 http/https 链接');
     }
 
-    const opener = process.platform === 'darwin'
-        ? { command: 'open', args: [rawUrl] }
-        : process.platform === 'win32'
-            ? { command: 'cmd', args: ['/c', 'start', '', rawUrl] }
-            : { command: 'xdg-open', args: [rawUrl] };
+    const opener = resolveExternalOpener(rawUrl, options.platform || process.platform);
+    const spawnImpl = options.spawnImpl || spawn;
+    const warn = options.warn || error;
 
-    const child = spawn(opener.command, opener.args, {
-        detached: true,
-        stdio: 'ignore',
+    return new Promise((resolve, reject) => {
+        let child;
+
+        try {
+            child = spawnImpl(opener.command, opener.args, {
+                detached: true,
+                stdio: 'ignore',
+            });
+        } catch (err) {
+            const message = `打开外部链接失败: ${err.message}`;
+            warn(message);
+            reject(new ConfigEditorError(message));
+            return;
+        }
+
+        let settled = false;
+        const settle = (callback, value) => {
+            if (settled) {
+                return;
+            }
+
+            settled = true;
+            callback(value);
+        };
+
+        child.once('error', err => {
+            const message = `打开外部链接失败: ${err.message}`;
+            warn(message);
+            settle(reject, new ConfigEditorError(message));
+        });
+        child.once('spawn', () => {
+            settle(resolve, true);
+        });
+        child.unref();
     });
-    child.unref();
 }
 
 function parseConfigItemJson(rawJson) {
@@ -1572,10 +1672,10 @@ app.post('/admin/api/settings', async (req, res) => {
     }
 });
 
-app.post('/admin/api/open-external', (req, res) => {
+app.post('/admin/api/open-external', async (req, res) => {
     try {
         const url = req.body && req.body.url;
-        openExternalUrl(url);
+        await openExternalUrl(url);
         res.status(204).end();
     } catch (err) {
         const statusCode = err instanceof ConfigEditorError ? 400 : 500;
@@ -1621,7 +1721,9 @@ app.post('/v1/messages', requireConfiguredApiKeys, (req, res) => {
     if (!accountManager.getActiveConfig()) {
         return createMissingConfigResponse(res);
     }
-    void handleClaudeMessagesRequest(req, res);
+    void handleClaudeMessagesRequest(req, res).catch(err => {
+        reportBusinessRequestError(res, err, 'Claude Messages 请求处理失败');
+    });
 });
 
 // 兼容 OpenAI 风格接口
@@ -1636,6 +1738,10 @@ app.use((req, res) => {
         error: 'Not Found',
         path: req.url
     });
+});
+
+app.use((err, req, res, next) => {
+    reportBusinessRequestError(res, err);
 });
 
 // ==================== 启动服务器 ====================
@@ -1694,6 +1800,8 @@ async function startServer() {
 }
 
 if (require.main === module) {
+    registerProcessSafetyHandlers();
+
     startServer().catch(err => {
         error('启动失败:', err.message);
         process.exit(1);
@@ -1720,6 +1828,9 @@ module.exports = {
     normalizeProxyJsonBody,
     shouldForceResponsesStoreFalse,
     activateConfigAdminResponse,
+    openExternalUrl,
+    reportBusinessRequestError,
+    registerProcessSafetyHandlers,
     refreshConfigAdminResponse,
     startServer
 };
