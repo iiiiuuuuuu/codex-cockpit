@@ -43,6 +43,9 @@ function normalizeResponsesRequestBody(requestPath, body, options = {}) {
         ...body
     };
     normalizedBody.model = normalizeModelAlias(body.model, options);
+    if (options.forceStoreFalse) {
+        normalizedBody.store = false;
+    }
 
     return normalizedBody;
 }

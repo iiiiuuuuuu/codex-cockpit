@@ -980,6 +980,17 @@ function rewriteProxyUrl(incomingUrl, config) {
     return `${parsedUrl.pathname}${parsedUrl.search}`;
 }
 
+function shouldForceResponsesStoreFalse(config, rewrittenUrl) {
+    return Boolean(config && config.type === 'token' && isResponsesPath(rewrittenUrl));
+}
+
+function normalizeProxyJsonBody(config, rewrittenUrl, body, responsesOptions) {
+    return normalizeResponsesRequestBody(rewrittenUrl, body, {
+        ...responsesOptions,
+        forceStoreFalse: shouldForceResponsesStoreFalse(config, rewrittenUrl),
+    });
+}
+
 function deleteHeadersCaseInsensitive(headers, namesToDelete) {
     for (const headerName of Object.keys(headers)) {
         if (namesToDelete.has(String(headerName).toLowerCase())) {
@@ -1267,7 +1278,7 @@ function createHandler(proxyPath = '') {
                 if (body.length > 0 && contentType.includes('application/json')) {
                     try {
                         const jsonBody = JSON.parse(body.toString('utf8'));
-                        const normalizedBody = normalizeResponsesRequestBody(req.url, jsonBody, responsesConfig);
+                        const normalizedBody = normalizeProxyJsonBody(config, req.url, jsonBody, responsesConfig);
                         body = Buffer.from(JSON.stringify(normalizedBody));
                     } catch (err) {
                         error('处理请求体时出错:', err.message);
@@ -1704,6 +1715,8 @@ module.exports = {
     LOCAL_ONLY_HEADER_PREFIXES,
     getGatewayStatusCode,
     isResponsesFailoverInspectionCandidate,
+    normalizeProxyJsonBody,
+    shouldForceResponsesStoreFalse,
     activateConfigAdminResponse,
     refreshConfigAdminResponse,
     startServer

@@ -39,6 +39,18 @@ test('normalizeResponsesRequestBody preserves client-provided store true for res
   assert.equal(normalized.store, true);
 });
 
+test('normalizeResponsesRequestBody forces store false when the upstream requires it', () => {
+  const normalized = normalizeResponsesRequestBody('/v1/responses', {
+    model: 'gpt-5.4-mini',
+    input: 'hello',
+    store: true,
+  }, {
+    forceStoreFalse: true,
+  });
+
+  assert.equal(normalized.store, false);
+});
+
 test('normalizeResponsesRequestBody leaves the model unchanged outside responses paths', () => {
   const normalized = normalizeResponsesRequestBody('/v1/chat/completions', {
     model: 'gpt-5.4-mini',

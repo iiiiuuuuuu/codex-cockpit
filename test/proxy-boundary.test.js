@@ -5,7 +5,12 @@ const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 
-const { buildProxyHeaders, isResponsesFailoverInspectionCandidate } = require('../openai');
+const {
+  buildProxyHeaders,
+  isResponsesFailoverInspectionCandidate,
+  normalizeProxyJsonBody,
+  shouldForceResponsesStoreFalse,
+} = require('../openai');
 const { createClaudeMessagesHandler } = require('../app/claude-messages-handler');
 
 function createJsonResponseRecorder() {
@@ -103,6 +108,30 @@ test('isResponsesFailoverInspectionCandidate inspects upstream auth failures', (
   assert.equal(isResponsesFailoverInspectionCandidate(401, {
     'content-type': 'application/json',
   }), true);
+});
+
+test('shouldForceResponsesStoreFalse only adapts token-backed Codex responses requests', () => {
+  assert.equal(shouldForceResponsesStoreFalse({
+    type: 'token',
+  }, '/backend-api/codex/responses'), true);
+  assert.equal(shouldForceResponsesStoreFalse({
+    type: 'apikey',
+  }, '/v1/responses'), false);
+  assert.equal(shouldForceResponsesStoreFalse({
+    type: 'token',
+  }, '/backend-api/codex/chat/completions'), false);
+});
+
+test('normalizeProxyJsonBody adapts store true for token-backed Codex responses requests', () => {
+  const normalized = normalizeProxyJsonBody({
+    type: 'token',
+  }, '/backend-api/codex/responses', {
+    model: 'gpt-5.5',
+    input: 'hello',
+    store: true,
+  }, {});
+
+  assert.equal(normalized.store, false);
 });
 
 test('server registers Claude messages compatibility on /v1/messages only', () => {
