@@ -17,10 +17,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos
+          - platform: macos-arm64
             runner: macos-latest
             build_script: build:macos
-            artifact_glob: desktop/src-tauri/target/release/bundle/macos/*.zip
+            artifact_glob: desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          - platform: macos-x64
+            runner: macos-15-intel
+            build_script: build:macos
+            artifact_glob: desktop/src-tauri/target/release/bundle/dmg/*.dmg
           - platform: windows
             runner: windows-2022
             build_script: build:windows
@@ -79,13 +83,20 @@ jobs:
           path: desktop-build-${{ matrix.platform }}.log
           if-no-files-found: ignore
 
-      - name: Zip macOS app
-        if: matrix.platform == 'macos'
+      - name: Normalize Windows installer name
+        if: matrix.platform == 'windows'
         shell: bash
         run: |
           set -euo pipefail
-          cd desktop/src-tauri/target/release/bundle/macos
-          ditto -c -k --sequesterRsrc --keepParent Airouter.app "Airouter_${GITHUB_REF_NAME}_${RUNNER_ARCH}.app.zip"
+          version="$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")"
+          installer_dir="desktop/src-tauri/target/release/bundle/nsis"
+          installers=("$installer_dir"/*.exe)
+          if [ "${#installers[@]}" -ne 1 ]; then
+            printf 'Expected exactly one Windows installer, found %s\n' "${#installers[@]}" >&2
+            printf '%s\n' "${installers[@]}" >&2
+            exit 1
+          fi
+          mv "${installers[0]}" "$installer_dir/Airouter_${version}_x64-setup.exe"
 
       - name: Upload packaged artifact
         uses: actions/upload-artifact@v4

@@ -11,7 +11,8 @@
     "tauri": "tauri",
     "dev": "node scripts/prepare-frontend.mjs && node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs && tauri dev",
     "build": "node scripts/prepare-frontend.mjs && node scripts/prepare-resources.mjs && node scripts/prepare-node.mjs && tauri build",
-    "build:macos": "npm run build -- --bundles app",
+    "build:macos": "npm run build -- --bundles dmg",
+    "build:macos:app": "npm run build -- --bundles app",
     "build:windows": "npm run build -- --bundles nsis"
   },
   "devDependencies": {

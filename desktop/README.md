@@ -36,11 +36,11 @@ cd desktop
 npm run build
 ```
 
-Build only the current platform app bundle:
+Build only the current platform installer:
 
 ```bash
 npm run build:macos
 npm run build:windows
 ```
 
-`build:macos` creates a signed `.app` bundle for local packaging. `build:windows` creates a Windows NSIS installer (`.exe`). GitHub Releases are produced by the tag workflow in `.github/workflows/release.yml`.
+`build:macos` creates a signed `.dmg` for the current Mac architecture. `build:macos:app` creates only the signed `.app` bundle for local inspection. `build:windows` creates a Windows NSIS installer (`.exe`). GitHub Releases are produced by the tag workflow in `.github/workflows/release.yml`; it builds separate macOS DMGs for Apple Silicon and Intel runners.
