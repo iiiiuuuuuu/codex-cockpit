@@ -29,6 +29,16 @@ test('normalizeResponsesRequestBody leaves the model unchanged when no configure
   assert.equal(normalized.model, 'gpt-5.4-mini');
 });
 
+test('normalizeResponsesRequestBody preserves client-provided store true for responses compatibility', () => {
+  const normalized = normalizeResponsesRequestBody('/v1/responses', {
+    model: 'gpt-5.4-mini',
+    input: 'hello',
+    store: true,
+  });
+
+  assert.equal(normalized.store, true);
+});
+
 test('normalizeResponsesRequestBody leaves the model unchanged outside responses paths', () => {
   const normalized = normalizeResponsesRequestBody('/v1/chat/completions', {
     model: 'gpt-5.4-mini',
