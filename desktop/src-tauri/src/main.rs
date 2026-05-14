@@ -874,6 +874,19 @@ mod tests {
     }
 
     #[test]
+    fn macos_bundle_enables_node_jit_entitlement() {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let tauri_config =
+            fs::read_to_string(manifest_dir.join("tauri.conf.json")).expect("read tauri config");
+        let entitlements =
+            fs::read_to_string(manifest_dir.join("entitlements.plist")).expect("read entitlements");
+
+        assert!(tauri_config.contains(r#""entitlements": "entitlements.plist""#));
+        assert!(entitlements.contains("<key>com.apple.security.cs.allow-jit</key>"));
+        assert!(entitlements.contains("<true/>"));
+    }
+
+    #[test]
     fn tails_last_lines() {
         let temp = tempfile::tempdir().expect("tempdir");
         let log = temp.path().join("openai.log");
