@@ -56,6 +56,7 @@ const CONTROL_REQUEST_FILE = process.env.AIROUTER_CONTROL_REQUEST_FILE || '';
 const QUOTA_CHECK_PATH = '/backend-api/wham/usage';
 const QUOTA_CHECK_INTERVAL_MS = 1 * 60 * 1000;
 const MIN_REMAINING_PERCENT = 3;
+const MIN_WEEKLY_REMAINING_PERCENT = 1;
 const HOP_BY_HOP_HEADERS = new Set([
     'host',
     'connection',
@@ -612,6 +613,7 @@ function applyLoadedConfig(loadedConfig) {
         quotaCheckTimeoutMs: QUOTA_CHECK_TIMEOUT_MS,
         quotaCheckIntervalMs: QUOTA_CHECK_INTERVAL_MS,
         minRemainingPercent: MIN_REMAINING_PERCENT,
+        minWeeklyRemainingPercent: MIN_WEEKLY_REMAINING_PERCENT,
         buildAuthHeadersForConfig,
         shouldUseQuotaMonitoring,
         log,
@@ -1662,7 +1664,7 @@ async function startServer() {
             log(`  - 模式: ${configType}`);
             log(`  - 账号数量: ${apiConfigs.length}`);
             log(`  - 当前账号: ${currentAccountStatus ? currentAccountStatus.label : '未配置'}`);
-            log(`  - 额度轮询: ${hasQuotaMonitoredConfigs(apiConfigs) ? `每 ${QUOTA_CHECK_INTERVAL_MS / 60000} 分钟检查所有 token 账号，剩余低于 ${MIN_REMAINING_PERCENT}% 自动切号` : '关闭（无 token 配置项）'}`);
+            log(`  - 额度轮询: ${hasQuotaMonitoredConfigs(apiConfigs) ? `每 ${QUOTA_CHECK_INTERVAL_MS / 60000} 分钟检查所有 token 账号，主额度低于 ${MIN_REMAINING_PERCENT}% 或周额度不高于 ${MIN_WEEKLY_REMAINING_PERCENT}% 自动切号` : '关闭（无 token 配置项）'}`);
             log(`  - 上游请求超时: ${UPSTREAM_REQUEST_TIMEOUT_MS > 0 ? `${UPSTREAM_REQUEST_TIMEOUT_MS}ms` : '关闭'}`);
             log(`  - quota check 超时: ${hasQuotaMonitoredConfigs(apiConfigs) ? `${QUOTA_CHECK_TIMEOUT_MS}ms` : '关闭（无 token 配置项）'}`);
             log(`  - 入口 apikey 校验: ${hasConfiguredApiKeys(currentParsedConfig) ? `开启（${getConfiguredApiKeys(currentParsedConfig).length} 个）` : '关闭（未配置 apikey）'}`);

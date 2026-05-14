@@ -389,7 +389,7 @@ test('applyQuotaPayload marks remaining below threshold as unavailable', () => {
   assert.equal(manager.getActiveConfig(), configs[0]);
 });
 
-test('applyQuotaPayload does not mark the account unavailable when only weekly quota is below threshold', () => {
+test('applyQuotaPayload keeps the account available when weekly quota remains above 1%', () => {
   const configs = [
     createConfig(0, { available: true, reason: 'ok' }),
     createConfig(1, { available: true, reason: 'ok' }),
@@ -411,6 +411,31 @@ test('applyQuotaPayload does not mark the account unavailable when only weekly q
   assert.equal(configs[0].runtime.primaryRemainingPercent, 50);
   assert.equal(configs[0].runtime.secondaryRemainingPercent, 2);
   assert.equal(manager.getActiveConfig(), configs[0]);
+});
+
+test('applyQuotaPayload marks the account unavailable when weekly quota is not above 1%', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { available: true, reason: 'ok' }),
+  ];
+  const { manager } = createManager(configs);
+
+  const selected = manager.applyQuotaPayload(configs[0], {
+    rate_limit: {
+      allowed: true,
+      limit_reached: false,
+      primary_window: { used_percent: 50, reset_at: 1713350000 },
+      secondary_window: { used_percent: 99, reset_at: 1713360000 },
+    },
+  });
+
+  assert.equal(selected, configs[1]);
+  assert.equal(configs[0].runtime.available, false);
+  assert.equal(configs[0].runtime.reason, 'secondary_remaining_not_above_1%');
+  assert.equal(configs[0].runtime.remainingPercent, 50);
+  assert.equal(configs[0].runtime.primaryRemainingPercent, 50);
+  assert.equal(configs[0].runtime.secondaryRemainingPercent, 1);
+  assert.equal(manager.getActiveConfig(), configs[1]);
 });
 
 test('applyQuotaPayload switches away from the active account when it becomes unavailable', () => {

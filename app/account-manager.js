@@ -11,6 +11,7 @@ function createAccountManager(options) {
     quotaCheckTimeoutMs = 0,
     quotaCheckIntervalMs,
     minRemainingPercent,
+    minWeeklyRemainingPercent = 1,
     buildAuthHeadersForConfig,
     requestBufferedFn = requestBuffered,
     shouldUseQuotaMonitoring,
@@ -75,6 +76,7 @@ function createAccountManager(options) {
       responses_usage_limit_reached: 'responses 窗口额度已用尽',
       responses_usage_not_included: 'responses 套餐不支持',
       [`remaining_below_${minRemainingPercent}%`]: `剩余额度低于 ${minRemainingPercent}%`,
+      [`secondary_remaining_not_above_${minWeeklyRemainingPercent}%`]: `周额度不高于 ${minWeeklyRemainingPercent}%`,
       quota_check_failed: '额度检查失败',
     };
 
@@ -163,7 +165,7 @@ function createAccountManager(options) {
     const rateLimit = payload && typeof payload === 'object' ? payload.rate_limit || {} : {};
     const primaryRemainingPercent = computeRemainingPercent(rateLimit.primary_window);
     const secondaryRemainingPercent = computeRemainingPercent(rateLimit.secondary_window);
-    // 3% 阈值和对外汇总口径都跟随主额度窗口；周额度仅用于展示。
+    // 对外汇总口径跟随主额度窗口；周额度单独作为可用性保护条件。
     const remainingPercent = primaryRemainingPercent !== null
       ? primaryRemainingPercent
       : secondaryRemainingPercent;
@@ -180,6 +182,9 @@ function createAccountManager(options) {
     } else if (primaryRemainingPercent !== null && primaryRemainingPercent < minRemainingPercent) {
       available = false;
       reason = `remaining_below_${minRemainingPercent}%`;
+    } else if (secondaryRemainingPercent !== null && secondaryRemainingPercent <= minWeeklyRemainingPercent) {
+      available = false;
+      reason = `secondary_remaining_not_above_${minWeeklyRemainingPercent}%`;
     }
 
     return {

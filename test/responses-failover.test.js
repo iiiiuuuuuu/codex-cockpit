@@ -28,6 +28,37 @@ test('classifyRetryableResponsesHttpError detects usage_limit_reached', () => {
   });
 });
 
+test('classifyRetryableResponsesHttpError detects raw usage limit messages', () => {
+  const result = classifyRetryableResponsesHttpError({
+    statusCode: 429,
+    bodyText: "You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 3:22 PM.",
+  });
+
+  assert.deepEqual(result, {
+    reason: 'responses_usage_limit_reached',
+    retryKey: 'usage_limit_reached',
+    retrySource: 'http',
+  });
+});
+
+test('classifyRetryableResponsesHttpError falls back to usage limit messages when error type is unknown', () => {
+  const result = classifyRetryableResponsesHttpError({
+    statusCode: 429,
+    bodyText: JSON.stringify({
+      error: {
+        type: 'rate_limit_error',
+        message: "You've hit your usage limit. Upgrade to Pro.",
+      },
+    }),
+  });
+
+  assert.deepEqual(result, {
+    reason: 'responses_usage_limit_reached',
+    retryKey: 'usage_limit_reached',
+    retrySource: 'http',
+  });
+});
+
 test('classifyRetryableResponsesHttpError detects usage_not_included', () => {
   const result = classifyRetryableResponsesHttpError({
     statusCode: 429,
@@ -155,6 +186,38 @@ test('createResponsesEventStreamInspector retries usage_limit_reached stream fai
 
   assert.deepEqual(firstResult, { action: 'pending' });
   assert.deepEqual(secondResult, {
+    action: 'retry',
+    reason: 'responses_usage_limit_reached',
+    retryKey: 'usage_limit_reached',
+    retrySource: 'stream',
+  });
+});
+
+test('createResponsesEventStreamInspector retries usage limit messages without an error code', () => {
+  const inspector = createResponsesEventStreamInspector();
+
+  const result = inspector.push(Buffer.from(
+    'data: {"type":"response.failed","response":{"error":{"message":"You\\u0027ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 3:22 PM."}}}\n\n',
+    'utf8',
+  ));
+
+  assert.deepEqual(result, {
+    action: 'retry',
+    reason: 'responses_usage_limit_reached',
+    retryKey: 'usage_limit_reached',
+    retrySource: 'stream',
+  });
+});
+
+test('createResponsesEventStreamInspector falls back to usage limit messages when error code is unknown', () => {
+  const inspector = createResponsesEventStreamInspector();
+
+  const result = inspector.push(Buffer.from(
+    'data: {"type":"response.failed","response":{"error":{"code":"rate_limit_error","message":"You\\u0027ve hit your usage limit. Upgrade to Pro."}}}\n\n',
+    'utf8',
+  ));
+
+  assert.deepEqual(result, {
     action: 'retry',
     reason: 'responses_usage_limit_reached',
     retryKey: 'usage_limit_reached',

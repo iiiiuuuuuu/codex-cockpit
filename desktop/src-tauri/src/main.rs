@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
@@ -305,6 +310,17 @@ fn build_admin_url(port: u16, auth_token: Option<&str>) -> String {
     }
 }
 
+fn is_runtime_web_host(host: Option<&str>) -> bool {
+    matches!(
+        host,
+        Some("localhost")
+            | Some("127.0.0.1")
+            | Some("[::1]")
+            | Some("::1")
+            | Some("tauri.localhost")
+    )
+}
+
 fn is_local_admin_url(url: &tauri::Url) -> bool {
     matches!(url.scheme(), "http" | "https")
         && matches!(
@@ -313,8 +329,12 @@ fn is_local_admin_url(url: &tauri::Url) -> bool {
         )
 }
 
+fn should_keep_in_app(url: &tauri::Url) -> bool {
+    matches!(url.scheme(), "http" | "https") && is_runtime_web_host(url.host_str())
+}
+
 fn open_external_url(url: &tauri::Url) {
-    if !matches!(url.scheme(), "http" | "https") || is_local_admin_url(url) {
+    if !matches!(url.scheme(), "http" | "https") || should_keep_in_app(url) {
         return;
     }
 
@@ -717,7 +737,7 @@ pub fn run() {
         .plugin(
             tauri::plugin::Builder::<tauri::Wry, ()>::new("external-link")
                 .on_navigation(|_, url| {
-                    if is_local_admin_url(url) || !matches!(url.scheme(), "http" | "https") {
+                    if should_keep_in_app(url) || !matches!(url.scheme(), "http" | "https") {
                         true
                     } else {
                         open_external_url(url);
@@ -832,6 +852,25 @@ mod tests {
 "#;
 
         assert_eq!(parse_windows_netstat_pid_output(output, 3009), vec![1234]);
+    }
+
+    #[test]
+    fn keeps_tauri_localhost_navigation_inside_the_app() {
+        let url = tauri::Url::parse("http://tauri.localhost/").expect("tauri localhost url");
+        assert!(should_keep_in_app(&url));
+        assert!(!is_local_admin_url(&url));
+    }
+
+    #[test]
+    fn release_windows_build_uses_gui_subsystem() {
+        let source = fs::read_to_string(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("main.rs"),
+        )
+        .expect("read main.rs");
+
+        assert!(source.contains("windows_subsystem = \"windows\""));
     }
 
     #[test]

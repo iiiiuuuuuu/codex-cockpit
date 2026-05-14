@@ -19,6 +19,28 @@ const IGNORABLE_PRELUDE_EVENT_TYPES = new Set([
   'response.in_progress',
 ]);
 
+function normalizeErrorText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getUsageLimitMessageKey(...values) {
+  const normalized = values
+    .map(normalizeErrorText)
+    .filter(Boolean)
+    .join('\n');
+
+  if (
+    normalized.includes("you've hit your usage limit") ||
+    normalized.includes('you have hit your usage limit') ||
+    normalized.includes('codex/settings/usage') ||
+    normalized.includes('purchase more credits')
+  ) {
+    return 'usage_limit_reached';
+  }
+
+  return '';
+}
+
 function parseJsonObject(text) {
   if (typeof text !== 'string' || text.trim().length === 0) {
     return null;
@@ -101,7 +123,13 @@ function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
   const errorType = payload && payload.error && typeof payload.error.type === 'string'
     ? payload.error.type
     : '';
-  const metadata = RETRYABLE_HTTP_ERROR_TYPES.get(errorType);
+  const messageKey = getUsageLimitMessageKey(
+    getPayloadString(payload, ['error', 'message']),
+    getPayloadString(payload, ['message']),
+    bodyText,
+  );
+  const retryKey = RETRYABLE_HTTP_ERROR_TYPES.has(errorType) ? errorType : messageKey;
+  const metadata = RETRYABLE_HTTP_ERROR_TYPES.get(retryKey);
 
   if (!metadata) {
     return null;
@@ -109,7 +137,7 @@ function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
 
   return {
     reason: metadata.reason,
-    retryKey: errorType,
+    retryKey,
     retrySource: 'http',
   };
 }
@@ -119,8 +147,13 @@ function classifyRetryableResponsesStreamPayload(payload) {
   const errorCode = payload && payload.response && payload.response.error && typeof payload.response.error.code === 'string'
     ? payload.response.error.code
     : '';
+  const errorMessage = payload && payload.response && payload.response.error && typeof payload.response.error.message === 'string'
+    ? payload.response.error.message
+    : '';
+  const messageKey = getUsageLimitMessageKey(errorMessage);
+  const retryKey = RETRYABLE_STREAM_ERROR_CODES.has(errorCode) ? errorCode : messageKey;
   const metadata = eventType === 'response.failed'
-    ? RETRYABLE_STREAM_ERROR_CODES.get(errorCode)
+    ? RETRYABLE_STREAM_ERROR_CODES.get(retryKey)
     : null;
 
   if (!metadata) {
@@ -130,7 +163,7 @@ function classifyRetryableResponsesStreamPayload(payload) {
   return {
     action: 'retry',
     reason: metadata.reason,
-    retryKey: errorCode,
+    retryKey,
     retrySource: 'stream',
   };
 }
