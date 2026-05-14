@@ -49,6 +49,29 @@ button {
     background 160ms ease;
 }
 
+input {
+  min-height: 42px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  accent-color: var(--accent);
+}
+
+input:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
 button:hover {
   border-color: var(--accent);
   transform: translateY(-1px);
@@ -146,6 +169,37 @@ p {
   animation: travel 1.25s ease-in-out infinite;
 }
 
+.setup-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.field-row {
+  display: grid;
+  gap: 7px;
+}
+
+.field-row label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.setup-form .primary {
+  width: fit-content;
+  margin-top: 4px;
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -172,6 +226,10 @@ pre {
 .boot-panel[data-state="error"] .progress span {
   background: var(--danger);
   box-shadow: 0 0 0 6px rgba(143, 44, 56, 0.12);
+}
+
+.boot-panel[data-state="setup"] .brand-row {
+  margin-bottom: 28px;
 }
 
 @keyframes travel {

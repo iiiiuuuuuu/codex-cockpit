@@ -114,6 +114,7 @@
 
     .list-panel {
       padding: 14px;
+      margin-bottom: 16px;
     }
 
     .panel-head {
@@ -652,6 +653,16 @@
 
     <div id="message" class="message" role="status" aria-live="polite"></div>
 
+    <section class="panel list-panel">
+      <div class="panel-head">
+        <div>
+          <h2 class="panel-title">上游配置</h2>
+          <p class="panel-note">查看运行态、手动切换当前配置，或删除不再使用的上游。</p>
+        </div>
+      </div>
+      <section id="cards"></section>
+    </section>
+
     <section class="console-grid">
       <div class="panel">
         <div class="panel-head">
@@ -794,16 +805,6 @@
         </div>
       </div>
     </div>
-
-    <section class="panel list-panel">
-      <div class="panel-head">
-        <div>
-          <h2 class="panel-title">上游配置</h2>
-          <p class="panel-note">查看运行态、手动切换当前配置，或删除不再使用的上游。</p>
-        </div>
-      </div>
-      <section id="cards"></section>
-    </section>
   </main>
 
   <script src="/config-admin.js"></script>

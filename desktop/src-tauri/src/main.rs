@@ -4,7 +4,7 @@
 )]
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -24,7 +24,7 @@ const PORT_KILL_WAIT_TIMEOUT_MS: u64 = 2_500;
 const PORT_FORCE_KILL_WAIT_TIMEOUT_MS: u64 = 800;
 const PORT_KILL_POLL_INTERVAL_MS: u64 = 100;
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ServiceStatus {
     running: bool,
@@ -42,6 +42,16 @@ struct ServiceStatus {
 struct ConfigShape {
     port: Option<Value>,
     auth_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InitialConfigRequest {
+    service_port: Option<Value>,
+    proxy_enabled: bool,
+    proxy_port: Option<Value>,
+    apikey_enabled: bool,
+    apikey: Option<String>,
 }
 
 fn app_data_root() -> Result<PathBuf, String> {
@@ -234,14 +244,11 @@ fn ensure_runtime(app: &AppHandle) -> Result<PathBuf, String> {
 
     let config_path = runtime_dir.join(CONFIG_FILE);
     let template_path = runtime_dir.join(CONFIG_TEMPLATE_FILE);
-    if !config_path.exists() && template_path.exists() {
-        fs::copy(&template_path, &config_path).map_err(|error| {
-            format!(
-                "无法从模板创建配置 {} -> {}: {error}",
-                template_path.display(),
-                config_path.display()
-            )
-        })?;
+    if !config_path.exists() && !template_path.exists() {
+        return Err(format!(
+            "运行目录缺少配置模板 {}",
+            template_path.display()
+        ));
     }
 
     Ok(runtime_dir)
@@ -289,6 +296,74 @@ fn parse_port(value: Option<Value>) -> Option<u16> {
         Value::String(text) => text.trim().parse::<u16>().ok(),
         _ => None,
     }
+}
+
+fn parse_initial_port(value: Option<Value>, fallback: u16, label: &str) -> Result<u16, String> {
+    match value {
+        None => Ok(fallback),
+        Some(Value::String(text)) if text.trim().is_empty() => Ok(fallback),
+        Some(value) => {
+            let port = parse_port(Some(value))
+                .ok_or_else(|| format!("{label}必须是 1-65535 之间的端口号"))?;
+            if port == 0 {
+                Err(format!("{label}必须是 1-65535 之间的端口号"))
+            } else {
+                Ok(port)
+            }
+        }
+    }
+}
+
+fn build_initial_config_value(
+    template_raw: &str,
+    request: InitialConfigRequest,
+) -> Result<Map<String, Value>, String> {
+    let parsed: Value = serde_json::from_str(template_raw)
+        .map_err(|error| format!("openai.json.example 解析失败: {error}"))?;
+    let mut config = parsed
+        .as_object()
+        .cloned()
+        .ok_or_else(|| "openai.json.example 必须是 JSON 对象".to_string())?;
+
+    let service_port = parse_initial_port(request.service_port, DEFAULT_PORT, "服务端口")?;
+    config.insert("port".to_string(), Value::from(service_port));
+
+    if request.proxy_enabled {
+        let proxy_port = parse_initial_port(request.proxy_port, 7890, "代理端口")?;
+        config.insert("proxy_port".to_string(), Value::from(proxy_port));
+    } else {
+        config.remove("proxy_port");
+    }
+
+    if request.apikey_enabled {
+        let apikey = request
+            .apikey
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "启用入口 apikey 时必须提供 apikey".to_string())?;
+        config.insert("apikeys".to_string(), Value::from(vec![apikey]));
+    } else {
+        config.insert("apikeys".to_string(), Value::from(Vec::<String>::new()));
+    }
+
+    config.remove("type");
+    Ok(config)
+}
+
+fn write_initial_config(runtime_dir: &Path, request: InitialConfigRequest) -> Result<(), String> {
+    let config_path = runtime_dir.join(CONFIG_FILE);
+    if config_path.exists() {
+        return Err("openai.json 已存在，无需初始化".to_string());
+    }
+
+    let template_path = runtime_dir.join(CONFIG_TEMPLATE_FILE);
+    let template_raw = fs::read_to_string(&template_path)
+        .map_err(|error| format!("无法读取配置模板 {}: {error}", template_path.display()))?;
+    let config = build_initial_config_value(&template_raw, request)?;
+    let rendered = serde_json::to_string_pretty(&Value::Object(config))
+        .map_err(|error| format!("无法生成 openai.json: {error}"))?;
+    fs::write(&config_path, format!("{rendered}\n"))
+        .map_err(|error| format!("无法写入 {}: {error}", config_path.display()))
 }
 
 fn read_config(runtime_dir: &Path) -> Result<ConfigShape, String> {
@@ -648,6 +723,17 @@ fn start_and_show_config_page(app: &AppHandle) -> Result<ServiceStatus, String> 
     Ok(status_for_runtime(runtime_dir))
 }
 
+fn maybe_start_or_prompt_for_config(app: &AppHandle) -> Result<(), String> {
+    let runtime_dir = ensure_runtime(app)?;
+    if !runtime_dir.join(CONFIG_FILE).exists() {
+        app.emit("airouter-config-missing", status_for_runtime(runtime_dir))
+            .map_err(|error| format!("无法显示配置引导: {error}"))?;
+        return Ok(());
+    }
+
+    start_and_show_config_page(app).map(|_| ())
+}
+
 fn stop_service_quietly(app: &AppHandle) {
     if let Err(error) = run_service_command(app, "stop") {
         eprintln!("Airouter Desktop stop failed: {error}");
@@ -681,6 +767,13 @@ fn restart_service(app: AppHandle) -> Result<ServiceStatus, String> {
 #[tauri::command]
 fn show_config_page(app: AppHandle) -> Result<ServiceStatus, String> {
     start_and_show_config_page(&app)
+}
+
+#[tauri::command]
+fn initialize_config(app: AppHandle, request: InitialConfigRequest) -> Result<ServiceStatus, String> {
+    let runtime_dir = ensure_runtime(&app)?;
+    write_initial_config(&runtime_dir, request)?;
+    Ok(status_for_runtime(runtime_dir))
 }
 
 #[tauri::command]
@@ -749,7 +842,7 @@ pub fn run() {
         .setup(|app| {
             let app_handle = app.handle().clone();
             thread::spawn(move || {
-                if let Err(error) = start_and_show_config_page(&app_handle) {
+                if let Err(error) = maybe_start_or_prompt_for_config(&app_handle) {
                     eprintln!("Airouter Desktop startup failed: {error}");
                     let _ = app_handle.emit("airouter-startup-error", error);
                 }
@@ -768,6 +861,7 @@ pub fn run() {
             stop_service,
             restart_service,
             show_config_page,
+            initialize_config,
             open_admin_window,
             open_admin_in_browser,
             reveal_runtime_dir,
@@ -832,6 +926,68 @@ mod tests {
             configured_port(temp.path()).expect("configured port"),
             DEFAULT_PORT
         );
+    }
+
+    #[test]
+    fn builds_initial_config_from_template_with_proxy_and_apikey() {
+        let request = InitialConfigRequest {
+            service_port: Some(Value::from("3017")),
+            proxy_enabled: true,
+            proxy_port: Some(Value::from("8899")),
+            apikey_enabled: true,
+            apikey: Some("sk-airouter-test".to_string()),
+        };
+
+        let config = build_initial_config_value(
+            r#"{"type":"token","apikeys":[],"port":3009,"proxy_port":7890,"configs":[]}"#,
+            request,
+        )
+        .expect("build initial config");
+
+        assert_eq!(config.get("type"), None);
+        assert_eq!(config.get("port"), Some(&Value::from(3017)));
+        assert_eq!(config.get("proxy_port"), Some(&Value::from(8899)));
+        assert_eq!(
+            config.get("apikeys"),
+            Some(&Value::from(vec!["sk-airouter-test"]))
+        );
+        assert_eq!(config.get("configs"), Some(&Value::from(Vec::<Value>::new())));
+    }
+
+    #[test]
+    fn builds_initial_config_without_proxy_or_apikey() {
+        let request = InitialConfigRequest {
+            service_port: Some(Value::from("3009")),
+            proxy_enabled: false,
+            proxy_port: Some(Value::from("8899")),
+            apikey_enabled: false,
+            apikey: Some("sk-airouter-unused".to_string()),
+        };
+
+        let config = build_initial_config_value(
+            r#"{"apikeys":["old"],"port":3010,"proxy_port":7890,"configs":[]}"#,
+            request,
+        )
+        .expect("build initial config");
+
+        assert_eq!(config.get("port"), Some(&Value::from(3009)));
+        assert_eq!(config.get("proxy_port"), None);
+        assert_eq!(config.get("apikeys"), Some(&Value::from(Vec::<Value>::new())));
+    }
+
+    #[test]
+    fn rejects_invalid_initial_config_ports() {
+        let request = InitialConfigRequest {
+            service_port: Some(Value::from("70000")),
+            proxy_enabled: true,
+            proxy_port: Some(Value::from("8899")),
+            apikey_enabled: false,
+            apikey: None,
+        };
+
+        let error = build_initial_config_value(r#"{"configs":[]}"#, request).expect_err("invalid port");
+
+        assert!(error.contains("服务端口"));
     }
 
     #[test]

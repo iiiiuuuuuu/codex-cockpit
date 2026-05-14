@@ -29,13 +29,26 @@ const {
 test('config admin hides the responses settings module', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
   const start = html.indexOf('<div id="responsesSettingsSection" class="hidden-settings" hidden>');
-  const end = html.indexOf('<section class="panel list-panel">');
+  const end = html.indexOf('</main>', start);
   const section = start >= 0 && end > start ? html.slice(start, end) : '';
 
   assert.ok(section, 'responses settings section should be wrapped in a hidden container');
   assert.match(section, /Responses 设置/);
   assert.match(section, /这里可以配置 `\/v1\/responses` 的模型别名映射/);
   assert.match(section, /saveResponsesSettingsButton/);
+});
+
+test('config admin shows upstream config before edit controls', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
+  const messageIndex = html.indexOf('<div id="message"');
+  const upstreamIndex = html.indexOf('<section class="panel list-panel">');
+  const consoleGridIndex = html.indexOf('<section class="console-grid">');
+  const addConfigIndex = html.indexOf('<h2 class="panel-title">新增配置项</h2>');
+
+  assert.ok(messageIndex >= 0, 'message area should be present');
+  assert.ok(upstreamIndex > messageIndex, 'upstream config should follow the message area');
+  assert.ok(consoleGridIndex > upstreamIndex, 'edit controls should appear after upstream config');
+  assert.ok(addConfigIndex > upstreamIndex, 'add config panel should appear after upstream config');
 });
 
 test('config admin exposes manual runtime config activation controls', () => {
