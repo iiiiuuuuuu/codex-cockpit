@@ -1057,10 +1057,9 @@
         <section class="routing-rules" aria-label="自动切换规则">
           <div class="rules-heading">自动切换</div>
           <ul class="rule-list">
-            <li><strong>顺序</strong>：Token 优先于 API Key，同类型优先保持当前账号。</li>
+            <li><strong>顺序</strong>：Token 模式优先于 API Key 模式，同类型优先保持当前账号。</li>
             <li><strong>触发</strong>：请求、额度轮询、手动刷新或上游额度/凭证错误后校正。</li>
             <li><strong>不可用</strong>：5小时 &lt; 3%、周配额 ≤ 1%、额度用尽或凭证失效。</li>
-            <li><strong>兜底</strong>：没有可用 Token 时使用 API Key。</li>
           </ul>
         </section>
 
@@ -1070,7 +1069,7 @@
       <section id="addAccountSection" class="section">
         <div class="section-head">
           <div>
-            <h2 class="page-title">新增上游配置</h2>
+            <h2 class="page-title">新增 Codex 账号配置</h2>
             <p class="page-note">Token 模式用于 Codex 登录态账号；API Key 模式用于兼容上游或 Claude Messages。</p>
           </div>
           <div class="button-row">
