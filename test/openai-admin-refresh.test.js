@@ -7,6 +7,7 @@ const {
   activateConfigAdminResponse,
   openExternalUrl,
   refreshConfigAdminResponse,
+  refreshSingleConfigAdminResponse,
   reportBusinessRequestError,
   registerProcessSafetyHandlers,
 } = require('../openai');
@@ -53,6 +54,44 @@ test('refreshConfigAdminResponse skips quota refresh when no token configs exist
 
   assert.equal(called, false);
   assert.equal(response, expectedResponse);
+});
+
+test('refreshSingleConfigAdminResponse refreshes one runtime config before building the admin snapshot', async () => {
+  const calls = [];
+  const manager = {
+    refreshConfig: async (index, reason) => {
+      calls.push([index, reason]);
+    },
+  };
+  const expectedResponse = {
+    configs: [
+      {
+        index: 1,
+      },
+    ],
+  };
+
+  const response = await refreshSingleConfigAdminResponse(1, {
+    accountManager: manager,
+    buildResponse: () => expectedResponse,
+  });
+
+  assert.deepEqual(calls, [[1, 'admin_refresh_single']]);
+  assert.equal(response, expectedResponse);
+});
+
+test('refreshSingleConfigAdminResponse wraps invalid single refresh errors', async () => {
+  await assert.rejects(
+    () => refreshSingleConfigAdminResponse(99, {
+      accountManager: {
+        refreshConfig: () => {
+          throw new Error('配置项索引不合法');
+        },
+      },
+      buildResponse: () => ({}),
+    }),
+    /配置项索引不合法/
+  );
 });
 
 test('activateConfigAdminResponse switches the active runtime config without refreshing quotas', async () => {

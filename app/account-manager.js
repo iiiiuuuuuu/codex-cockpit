@@ -631,6 +631,20 @@ function createAccountManager(options) {
     }
   }
 
+  async function refreshConfig(index, reason = 'manual_refresh') {
+    if (!Number.isInteger(index) || index < 0 || index >= configs.length) {
+      throw new Error('配置项索引不合法');
+    }
+
+    const config = configs[index];
+    if (shouldUseQuotaMonitoring(config.type)) {
+      await refreshSingleConfigWithLogging(config, reason);
+      ensureActiveConfig(reason);
+    }
+
+    return config;
+  }
+
   /**
    * 启动后台额度轮询定时器。
    */
@@ -661,6 +675,7 @@ function createAccountManager(options) {
   return {
     ensureActiveConfig,
     refreshQuotas,
+    refreshConfig,
     startQuotaMonitor,
     stopQuotaMonitor,
     getActiveConfig,

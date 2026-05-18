@@ -12,3 +12,5 @@ desktop/src-tauri/target
 desktop/src-tauri/gen
 desktop/src-tauri/resources/airouter
 desktop/src-tauri/binaries/node*
+
+.idea

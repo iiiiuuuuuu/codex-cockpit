@@ -1,0 +1,2172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex 驾驶舱</title>
+  <style>
+    :root {
+      --page: #f6f9fd;
+      --surface: rgba(255, 255, 255, 0.9);
+      --surface-solid: #ffffff;
+      --surface-soft: #edf3fb;
+      --line: #dfe7f2;
+      --line-strong: #c8d5e6;
+      --text: #172033;
+      --muted: #73839b;
+      --soft: #a7b7cb;
+      --blue: #2563eb;
+      --teal: #0891b2;
+      --green: #20c05c;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --purple: #7c3aed;
+      --shadow: 0 22px 55px rgba(35, 49, 73, 0.14);
+      --card-shadow: 0 16px 36px rgba(33, 43, 60, 0.12);
+      --radius: 8px;
+      --sans: "Avenir Next", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+      --mono: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: var(--sans);
+      background:
+        radial-gradient(circle at 91% 6%, rgba(8, 145, 178, 0.13), transparent 20rem),
+        radial-gradient(circle at 6% 11%, rgba(37, 99, 235, 0.12), transparent 21rem),
+        linear-gradient(135deg, #f3f7ff 0%, #fbfdff 45%, #eef8f5 100%);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .shell {
+      display: grid;
+      grid-template-columns: 248px minmax(0, 1fr);
+      gap: 36px;
+      min-height: 100vh;
+      padding: 76px 52px 52px 40px;
+    }
+
+    .sidebar {
+      align-self: start;
+      position: sticky;
+      top: 64px;
+      display: grid;
+      gap: 18px;
+      padding: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.84);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      padding: 8px 8px 14px;
+    }
+
+    .brand-title {
+      margin: 0;
+      color: var(--blue);
+      font-size: 24px;
+      line-height: 1.15;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .brand-subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .nav-button {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      min-height: 58px;
+      padding: 8px 12px 8px 8px;
+      border-radius: 16px;
+      color: #506078;
+      background: transparent;
+      text-align: left;
+      font-weight: 800;
+    }
+
+    .nav-button:hover,
+    .nav-button.active {
+      color: var(--blue);
+      background: #eef4ff;
+    }
+
+    .nav-button.active .nav-icon {
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+      box-shadow: 0 12px 24px rgba(37, 99, 235, 0.24);
+    }
+
+    .nav-icon,
+    .icon-button,
+    .card-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius);
+      background: #f4f7fb;
+    }
+
+    .legacy-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      color: #506078;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 800;
+      border-radius: var(--radius);
+      background: #f4f7fb;
+    }
+
+    .main {
+      min-width: 0;
+    }
+
+    .section {
+      display: none;
+    }
+
+    .section.active {
+      display: block;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    .page-title {
+      margin: 0;
+      color: var(--blue);
+      font-size: 34px;
+      line-height: 1.1;
+      letter-spacing: 0;
+      font-weight: 900;
+    }
+
+    .page-note {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(118px, 148px) minmax(118px, 158px) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 52px;
+      margin-bottom: 14px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 10px 24px rgba(35, 49, 73, 0.08);
+      backdrop-filter: blur(18px);
+    }
+
+    .search {
+      position: relative;
+      min-width: 0;
+    }
+
+    .search svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #92a4bd;
+      pointer-events: none;
+      width: 18px;
+      height: 18px;
+    }
+
+    .search input,
+    .select-control,
+    .text-input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: #344258;
+      font-weight: 700;
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    }
+
+    .search input,
+    .select-control,
+    .text-input {
+      height: 36px;
+    }
+
+    .search input {
+      padding: 0 12px 0 36px;
+    }
+
+    .search input::placeholder {
+      color: #9aacc4;
+    }
+
+    .select-wrap {
+      position: relative;
+      min-width: 0;
+    }
+
+    .select-wrap svg {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #91a2ba;
+      pointer-events: none;
+      width: 18px;
+      height: 18px;
+    }
+
+    .select-control {
+      appearance: none;
+      padding: 0 30px 0 10px;
+    }
+
+    .text-input {
+      padding: 0 16px;
+    }
+
+    textarea {
+      min-height: 250px;
+      padding: 16px;
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.65;
+      font-weight: 600;
+    }
+
+    .icon-button,
+    .card-action {
+      color: #526178;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #f4f7fb;
+      box-shadow: 0 6px 14px rgba(42, 54, 74, 0.08);
+    }
+
+    .icon-button {
+      width: 36px;
+      height: 36px;
+    }
+
+    .icon-button.primary {
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+      box-shadow: 0 14px 26px rgba(37, 99, 235, 0.26);
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .toolbar-actions {
+      justify-self: end;
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+
+    .command {
+      min-height: 46px;
+      padding: 0 18px;
+      border-radius: var(--radius);
+      color: #526178;
+      background: #eef4fb;
+      font-weight: 900;
+    }
+
+    .command.primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+    }
+
+    .command.danger {
+      color: #b4232b;
+      background: #fde8e8;
+    }
+
+    .message {
+      display: none;
+      position: fixed;
+      top: 24px;
+      right: 28px;
+      z-index: 20;
+      width: min(520px, calc(100vw - 40px));
+      margin: 0;
+      padding: 13px 16px;
+      border-radius: var(--radius);
+      font-weight: 800;
+      line-height: 1.5;
+      border: 1px solid transparent;
+      box-shadow: 0 18px 44px rgba(35, 49, 73, 0.16);
+    }
+
+    .message.show { display: block; }
+    .message.info {
+      color: #096548;
+      background: #e6f6ef;
+      border-color: #bfe9d4;
+    }
+    .message.error {
+      color: #a82020;
+      background: #fdecec;
+      border-color: #f6c8c8;
+    }
+
+    .accounts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 390px));
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .account-card,
+    .panel {
+      border: 1px solid rgba(222, 230, 241, 0.9);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: var(--card-shadow);
+    }
+
+    .account-card {
+      min-width: 0;
+      min-height: 304px;
+      display: grid;
+      grid-template-rows: auto auto minmax(116px, 1fr) auto;
+      padding: 18px;
+      border-radius: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .account-card.current {
+      border-color: var(--blue);
+      box-shadow: 0 18px 44px rgba(37, 99, 235, 0.18);
+    }
+
+    .account-card.unavailable {
+      border-color: rgba(239, 68, 68, 0.34);
+    }
+
+    .account-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .account-name {
+      min-width: 0;
+      min-height: 42px;
+      font-size: 16px;
+      line-height: 1.28;
+      font-weight: 900;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .pill-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 12px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    .pill.current { background: var(--green); letter-spacing: 0; }
+    .pill.plan,
+    .pill.team {
+      color: #42526a;
+      background: #eef2f7;
+    }
+    .pill.bad { background: #f7e3e5; color: #b4232b; }
+
+    .status-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 28px;
+      margin-bottom: 14px;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 900;
+      color: #42526a;
+      background: #eef2f7;
+    }
+
+    .status-chip.ok {
+      color: #0f7b4a;
+      background: #e1f5eb;
+    }
+
+    .status-chip.bad {
+      color: #b4232b;
+      background: #fde8e8;
+    }
+
+    .status-chip.current {
+      color: var(--blue);
+      background: #e8f0ff;
+    }
+
+    .quota-block {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      margin-bottom: 14px;
+    }
+
+    .quota-row {
+      display: grid;
+      gap: 7px;
+    }
+
+    .quota-meta {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 28px;
+    }
+
+    .quota-label,
+    .reset-text,
+    .stamp,
+    .detail-line {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .quota-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      font-size: 14px;
+    }
+
+    .quota-percent {
+      font-size: 17px;
+      line-height: 1;
+      font-weight: 900;
+      color: var(--green);
+    }
+
+    .quota-percent.low { color: var(--amber); }
+    .quota-percent.zero { color: var(--red); }
+    .quota-percent.unknown { color: var(--soft); }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: #edf2f8;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: var(--value);
+      max-width: 100%;
+      min-width: 0;
+      border-radius: inherit;
+      background: var(--green);
+    }
+
+    .bar-fill.low { background: var(--amber); }
+    .bar-fill.zero { background: var(--red); }
+    .bar-fill.unknown { background: #cbd5e1; }
+
+    .reset-text {
+      min-height: 22px;
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #a9b6c9;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-footer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid #e8edf4;
+    }
+
+    .stamp {
+      min-width: 0;
+      color: #aab7ca;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .card-action {
+      width: 40px;
+      height: 40px;
+    }
+
+    .card-action.danger.confirming,
+    .card-action.danger:not(:disabled):hover {
+      color: var(--red);
+      background: #fde8e8;
+    }
+
+    .detail-line {
+      margin-top: 8px;
+      color: #9eabba;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .detail-line.error {
+      color: #b4232b;
+    }
+
+    .api-key-note {
+      min-height: 112px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      color: var(--muted);
+      background: var(--surface-soft);
+      font-weight: 800;
+      line-height: 1.6;
+    }
+
+    .routing-rules {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 46px;
+      margin: -2px 0 14px;
+      padding: 10px 14px;
+      border: 1px solid rgba(207, 218, 233, 0.78);
+      border-radius: 14px;
+      background: rgba(248, 251, 255, 0.72);
+      box-shadow: 0 8px 22px rgba(35, 49, 73, 0.05);
+    }
+
+    .rules-heading {
+      display: inline-flex;
+      align-items: center;
+      flex: 0 0 auto;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      color: var(--blue);
+      background: #e8f0ff;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .rule-list {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px 0;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .rule-list li {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 760;
+    }
+
+    .rule-list li + li::before {
+      content: "";
+      display: inline-block;
+      width: 1px;
+      height: 12px;
+      margin: 0 10px -2px;
+      background: #c9d5e6;
+    }
+
+    .rule-list strong {
+      color: var(--text);
+      font-weight: 900;
+    }
+
+    .is-loading svg {
+      animation: spin 900ms linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .panel {
+      border-radius: 22px;
+      padding: 26px;
+    }
+
+    .panel + .panel {
+      margin-top: 22px;
+    }
+
+    .panel-title {
+      margin: 0 0 18px;
+      font-size: 20px;
+      line-height: 1.25;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .form-grid.single {
+      grid-template-columns: 1fr;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .field-hint {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      font-weight: 700;
+    }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .mode-option {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      min-height: 86px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: var(--text);
+      text-align: left;
+    }
+
+    .mode-option.active {
+      border-color: rgba(37, 99, 235, 0.44);
+      background: #eef4ff;
+      box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
+    }
+
+    .mode-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid #9aaec8;
+      background: #fff;
+    }
+
+    .mode-option.active .mode-dot {
+      border-color: var(--blue);
+      box-shadow: inset 0 0 0 5px #fff;
+      background: var(--blue);
+    }
+
+    .mode-name {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 900;
+    }
+
+    .mode-note {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .config-panel[hidden] {
+      display: none;
+    }
+
+    .support-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .support-option {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 8px 13px;
+      border-radius: 999px;
+      color: var(--text);
+      background: var(--surface-soft);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .key-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .info-box {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #eef4ff;
+      color: #42526a;
+      font-size: 14px;
+      line-height: 1.6;
+      font-weight: 750;
+    }
+
+    .info-box code {
+      font-family: var(--mono);
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    .key-item {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 14px;
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+    }
+
+    .key-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+
+    .key-value,
+    .endpoint-value {
+      font-family: var(--mono);
+      word-break: break-all;
+    }
+
+    .endpoint-card {
+      display: grid;
+      gap: 8px;
+      padding: 16px;
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+    }
+
+    .endpoint-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .endpoint-value {
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .endpoint-meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 700;
+    }
+
+    .empty {
+      padding: 34px;
+      border: 1px dashed var(--line-strong);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--muted);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    svg {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 1320px) {
+      .shell {
+        grid-template-columns: 220px minmax(0, 1fr);
+        padding: 68px 26px 38px;
+        gap: 24px;
+      }
+
+      .toolbar {
+        grid-template-columns: minmax(220px, 1fr) minmax(118px, 160px) minmax(118px, 170px) auto;
+      }
+
+      .accounts-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 390px));
+      }
+
+    }
+
+    @media (max-width: 860px) {
+      .shell {
+        display: block;
+        padding: 56px 16px 32px;
+      }
+
+      .sidebar {
+        position: static;
+        margin-bottom: 24px;
+      }
+
+      .nav-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .toolbar,
+      .form-grid,
+      .mode-switch,
+      .accounts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .routing-rules {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .section-head {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .button-row {
+        width: 100%;
+      }
+
+      .icon-button,
+      .button-row .command {
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="配置导航">
+      <div class="brand">
+        <h1 class="brand-title">Codex 驾驶舱</h1>
+        <p class="brand-subtitle">账号、入口密钥和本地代理集中管理。</p>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-button active" type="button" data-section-target="accountsSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 16c4-1 7-4 8-8"/><path d="M12 8l4-4 4 4-4 4z"/><path d="M5 16l-1 4 4-1 9-9"/></svg></span>
+          <span>账号列表</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="addAccountSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span>新增配置</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="accessSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M15 7a4 4 0 1 0-7.2 2.4L3 14.2V18h3.8l4.8-4.8A4 4 0 0 0 15 7z"/><path d="M14 6l4 4"/></svg></span>
+          <span>访问控制</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="proxySection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><path d="M8 7v10M16 7v10"/></svg></span>
+          <span>代理入口</span>
+        </button>
+      </nav>
+
+      <a class="legacy-link" id="legacyLink" href="/admin/configs">返回旧版配置页</a>
+    </aside>
+
+    <main class="main">
+      <div id="message" class="message" role="status" aria-live="polite"></div>
+
+      <section id="accountsSection" class="section active">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">Codex 账号管理</h2>
+            <p class="page-note">查看额度、手动切换、刷新运行态和删除不再使用的账号。</p>
+          </div>
+        </div>
+
+        <section class="toolbar" aria-label="账号工具栏">
+          <label class="search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+            <input id="searchInput" type="search" placeholder="搜索账号..." autocomplete="off">
+          </label>
+
+          <label class="select-wrap">
+            <select id="filterSelect" class="select-control" aria-label="账号筛选">
+              <option value="all">全部</option>
+              <option value="current">当前</option>
+              <option value="available">可用</option>
+              <option value="unavailable">不可用</option>
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+          </label>
+
+          <label class="select-wrap">
+            <select id="sortSelect" class="select-control" aria-label="账号排序">
+              <option value="index">按配置顺序</option>
+              <option value="quota">按额度</option>
+              <option value="checked">按刷新时间</option>
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+          </label>
+
+          <div class="button-row toolbar-actions">
+            <button class="icon-button primary" type="button" data-jump-section="addAccountSection" title="新增账号" aria-label="新增账号">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="icon-button" type="button" id="refreshButton" title="刷新全部账号额度" aria-label="刷新全部账号额度">
+              <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+            </button>
+          </div>
+        </section>
+
+        <section class="routing-rules" aria-label="自动切换规则">
+          <div class="rules-heading">自动切换</div>
+          <ul class="rule-list">
+            <li><strong>顺序</strong>：Token 优先于 API Key，同类型优先保持当前账号。</li>
+            <li><strong>触发</strong>：请求、额度轮询、手动刷新或上游额度/凭证错误后校正。</li>
+            <li><strong>不可用</strong>：5小时 &lt; 3%、周配额 ≤ 1%、额度用尽或凭证失效。</li>
+            <li><strong>兜底</strong>：没有可用 Token 时使用 API Key。</li>
+          </ul>
+        </section>
+
+        <section id="accountsGrid" class="accounts-grid" aria-live="polite"></section>
+      </section>
+
+      <section id="addAccountSection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">新增上游配置</h2>
+            <p class="page-note">Token 模式用于 Codex 登录态账号；API Key 模式用于兼容上游或 Claude Messages。</p>
+          </div>
+          <div class="button-row">
+            <button class="command" type="button" data-open-external="https://chatgpt.com/">打开 ChatGPT</button>
+            <button class="command" type="button" data-open-external="https://chatgpt.com/api/auth/session">打开 AuthSession</button>
+          </div>
+        </div>
+
+        <section class="panel">
+          <h3 class="panel-title" id="addConfigModeTitle">Token 模式</h3>
+          <div class="mode-switch" role="radiogroup" aria-label="配置模式">
+            <button class="mode-option active" type="button" data-config-mode="token" aria-pressed="true">
+              <span class="mode-dot" aria-hidden="true"></span>
+              <span>
+                <span class="mode-name">Token 模式</span>
+                <span class="mode-note">粘贴 ChatGPT AuthSession JSON，适合 Codex 登录态账号。</span>
+              </span>
+            </button>
+            <button class="mode-option" type="button" data-config-mode="apikey" aria-pressed="false">
+              <span class="mode-dot" aria-hidden="true"></span>
+              <span>
+                <span class="mode-name">API Key 模式</span>
+                <span class="mode-note">填写兼容上游地址和 API Key，可选择 GPT 或 Claude 能力。</span>
+              </span>
+            </button>
+          </div>
+
+          <div id="tokenConfigPanel" class="config-panel">
+            <div class="form-grid single">
+              <div class="field">
+                <label class="field-label" for="rawJsonInput">AuthSession JSON</label>
+                <textarea id="rawJsonInput" spellcheck="false"></textarea>
+                <p class="field-hint">系统会自动提取 accessToken、refresh_token、account id 和邮箱备注。粘贴后不要退出该浏览器登录态。</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="apiKeyConfigPanel" class="config-panel" hidden>
+            <div class="form-grid">
+              <div class="field">
+                <label class="field-label" for="apiKeyBaseUrlInput">Base URL</label>
+                <input id="apiKeyBaseUrlInput" class="text-input" type="url" placeholder="https://api.example.com/v1">
+                <p class="field-hint">OpenAI 兼容接口通常填写到 `/v1`。</p>
+              </div>
+              <div class="field">
+                <label class="field-label" for="apiKeyInput">API Key</label>
+                <input id="apiKeyInput" class="text-input" type="password" autocomplete="off" placeholder="sk-...">
+                <p class="field-hint">会写入本地配置文件，仅用于转发到上游。</p>
+              </div>
+              <div class="field">
+                <label class="field-label" for="apiKeyDescriptionInput">备注</label>
+                <input id="apiKeyDescriptionInput" class="text-input" type="text" placeholder="例如：OpenAI 兼容备用上游">
+              </div>
+              <div class="field">
+                <span class="field-label">支持能力</span>
+                <div class="support-options">
+                  <label class="support-option">
+                    <input type="checkbox" name="apiKeySupport" value="gpt" checked>
+                    <span>GPT</span>
+                  </label>
+                  <label class="support-option">
+                    <input type="checkbox" name="apiKeySupport" value="claude">
+                    <span>Claude</span>
+                  </label>
+                </div>
+                <p class="field-hint">GPT 用于 OpenAI 兼容 `/v1/*`；Claude 用于原样转发 `/v1/messages`。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="button-row" style="margin-top: 18px;">
+            <button class="command primary" type="button" id="addConfigButton">新增配置</button>
+            <button class="command" type="button" id="clearConfigButton">清空</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="accessSection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">访问控制</h2>
+            <p class="page-note">入口 apikey 为空时，请求不会校验 apikey。</p>
+          </div>
+          <button class="command primary" type="button" id="addApiKeyButton">新增随机 apikey</button>
+        </div>
+
+        <section class="panel">
+          <h3 class="panel-title" id="apiKeyStatusTitle">入口 apikey</h3>
+          <div class="info-box">
+            <div>入口 apikey 用于保护 Airouter 本地代理入口，不是 OpenAI、Codex 或 Claude 上游 API Key，也不会被转发给上游。</div>
+            <div>配置后，客户端请求 <code>/v1/*</code> 时必须带上任意一个已配置的 key：可以使用 <code>Authorization: Bearer &lt;apikey&gt;</code>，也可以使用 <code>x-api-key: &lt;apikey&gt;</code>。</div>
+            <div>配置多个 key 时，任意一个匹配即可访问，适合给不同客户端、设备或临时授权分别使用；删除某个 key 只会影响使用它的客户端。列表为空则不校验。</div>
+          </div>
+          <div id="apiKeysList" class="key-list"></div>
+        </section>
+      </section>
+
+      <section id="proxySection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">代理入口</h2>
+            <p class="page-note">配置 Airouter 对外服务端口，以及访问上游时借用的本机 VPN/代理软件端口。</p>
+          </div>
+        </div>
+
+        <section class="panel">
+          <h3 class="panel-title">端口配置</h3>
+          <div class="form-grid">
+            <div class="field">
+              <label class="field-label" for="servicePortInput">服务端口</label>
+              <input id="servicePortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="3009">
+              <p class="field-hint">Airouter 在你本机监听的对外服务端口。Codex、OpenAI SDK 或其他客户端会连到这个端口，例如填写 `http://localhost:3009/v1` 作为 Base URL。</p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="proxyPortInput">代理端口</label>
+              <input id="proxyPortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="留空不用代理">
+              <p class="field-hint">这里填写你本地 VPN/代理软件正在监听的端口，例如 Clash、Surge、V2RayN 常见的 7890。填写后 Airouter 访问上游时会通过该代理出网；留空则直连。</p>
+            </div>
+            <div class="field full">
+              <div class="endpoint-card">
+                <div class="endpoint-label">代理访问地址</div>
+                <code class="endpoint-value" id="proxyV1Url">http://localhost:3009/v1</code>
+                <div class="endpoint-meta" id="proxyEndpointMeta">把这个地址填到 Codex/OpenAI 客户端的 Base URL；Responses 接口为 http://localhost:3009/v1/responses。</div>
+              </div>
+            </div>
+          </div>
+          <div class="button-row" style="margin-top: 18px;">
+            <button class="command primary" type="button" id="saveProxySettingsButton">保存端口配置</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/config-admin.js"></script>
+  <script>
+    const messageEl = document.getElementById('message');
+    const accountsGrid = document.getElementById('accountsGrid');
+    const searchInput = document.getElementById('searchInput');
+    const filterSelect = document.getElementById('filterSelect');
+    const sortSelect = document.getElementById('sortSelect');
+    const refreshButton = document.getElementById('refreshButton');
+    const configModeButtons = [...document.querySelectorAll('[data-config-mode]')];
+    const addConfigModeTitle = document.getElementById('addConfigModeTitle');
+    const tokenConfigPanel = document.getElementById('tokenConfigPanel');
+    const apiKeyConfigPanel = document.getElementById('apiKeyConfigPanel');
+    const rawJsonInput = document.getElementById('rawJsonInput');
+    const apiKeyBaseUrlInput = document.getElementById('apiKeyBaseUrlInput');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const apiKeyDescriptionInput = document.getElementById('apiKeyDescriptionInput');
+    const addConfigButton = document.getElementById('addConfigButton');
+    const clearConfigButton = document.getElementById('clearConfigButton');
+    const addApiKeyButton = document.getElementById('addApiKeyButton');
+    const apiKeysListEl = document.getElementById('apiKeysList');
+    const apiKeyStatusTitle = document.getElementById('apiKeyStatusTitle');
+    const servicePortInput = document.getElementById('servicePortInput');
+    const proxyPortInput = document.getElementById('proxyPortInput');
+    const proxyV1Url = document.getElementById('proxyV1Url');
+    const proxyEndpointMeta = document.getElementById('proxyEndpointMeta');
+    const saveProxySettingsButton = document.getElementById('saveProxySettingsButton');
+    const legacyLink = document.getElementById('legacyLink');
+    const adminAuthToken = new URLSearchParams(window.location.search).get('auth_token') || '';
+    const {
+      buildConfigSnapshotRequest,
+      buildJsonRequestOptions,
+      buildRequestUrl,
+      parseResponsesApiResponse,
+      extractErrorMessage,
+      getConfigIdentityValue,
+      buildConfigItemFromForm,
+      getConfigGuideContent,
+      normalizePortValue,
+      buildProxyAccessInfo,
+    } = window.AirouterConfigAdmin;
+
+    let snapshot = null;
+    let messageTimer = null;
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function withAuthToken(url) {
+      return buildRequestUrl(url, {
+        adminAuthToken,
+        origin: window.location.origin,
+      });
+    }
+
+    function setMessage(type, text) {
+      if (messageTimer) {
+        window.clearTimeout(messageTimer);
+        messageTimer = null;
+      }
+
+      if (!text) {
+        messageEl.className = 'message';
+        messageEl.textContent = '';
+        return;
+      }
+
+      messageEl.className = `message show ${type}`;
+      messageEl.textContent = text;
+
+      if (type === 'info') {
+        messageTimer = window.setTimeout(() => {
+          setMessage('', '');
+        }, 3800);
+      }
+    }
+
+    async function requestJson(url, options = {}) {
+      const response = await fetch(withAuthToken(url), buildJsonRequestOptions(options));
+      const contentType = response.headers.get('content-type') || '';
+      const payload = parseResponsesApiResponse(await response.text(), contentType);
+
+      if (!response.ok) {
+        const error = new Error(extractErrorMessage(payload, `HTTP ${response.status}`));
+        error.status = response.status;
+        throw error;
+      }
+
+      return payload;
+    }
+
+    function switchSection(sectionId) {
+      document.querySelectorAll('.section').forEach(section => {
+        section.classList.toggle('active', section.id === sectionId);
+      });
+      document.querySelectorAll('[data-section-target]').forEach(button => {
+        button.classList.toggle('active', button.dataset.sectionTarget === sectionId);
+      });
+      setMessage('', '');
+    }
+
+    function isTokenConfig(item) {
+      const configItem = item && item.item ? item.item : item;
+      return !configItem || configItem.type !== 'apikey';
+    }
+
+    function isApiKeyConfig(item) {
+      const configItem = item && item.item ? item.item : item;
+      return Boolean(configItem && configItem.type === 'apikey');
+    }
+
+    function getAccountText(item) {
+      const configItem = item.item || {};
+      return [
+        configItem.description,
+        configItem.account_id,
+        getConfigIdentityValue(snapshot || {}, item),
+      ].filter(Boolean).join(' ');
+    }
+
+    function getDisplayName(item) {
+      const configItem = item.item || {};
+      return configItem.description || configItem.account_id || `配置 #${item.index + 1}`;
+    }
+
+    function getPlanLabel(item) {
+      if (isApiKeyConfig(item)) {
+        return 'API KEY';
+      }
+
+      const configItem = item.item || {};
+      const plan = String(
+        configItem.plan_type
+        || configItem.plan
+        || configItem.subscription?.plan_type
+        || configItem.user?.plan_type
+        || ''
+      ).trim().toUpperCase();
+
+      if (['PLUS', 'PRO', 'TEAM', 'BUSINESS', 'ENTERPRISE'].includes(plan)) {
+        return plan;
+      }
+
+      return 'TOKEN';
+    }
+
+    function getRuntimeValue(runtime, key) {
+      return runtime && Object.prototype.hasOwnProperty.call(runtime, key) ? runtime[key] : null;
+    }
+
+    function parsePercentFromSummary(summary, label) {
+      const match = String(summary || '').match(new RegExp(`${label}=([^|]+)`));
+      if (!match) {
+        return null;
+      }
+
+      const value = match[1].trim();
+      if (!/%$/.test(value)) {
+        return null;
+      }
+
+      const percent = Number.parseFloat(value.replace('%', ''));
+      return Number.isFinite(percent) ? percent : null;
+    }
+
+    function getPrimaryPercent(runtime) {
+      const value = getRuntimeValue(runtime, 'primary_remaining_percent');
+      return typeof value === 'number' ? value : parsePercentFromSummary(runtime?.runtime_summary, '额度');
+    }
+
+    function getWeeklyPercent(runtime) {
+      const value = getRuntimeValue(runtime, 'secondary_remaining_percent');
+      return typeof value === 'number' ? value : parsePercentFromSummary(runtime?.runtime_summary, '周额度');
+    }
+
+    function formatPercent(value) {
+      return typeof value === 'number' ? `${Math.round(value)}%` : '--';
+    }
+
+    function getPercentTone(value) {
+      if (typeof value !== 'number') {
+        return 'unknown';
+      }
+      if (value <= 0) {
+        return 'zero';
+      }
+      return value < 55 ? 'low' : '';
+    }
+
+    function clampPercent(value) {
+      if (typeof value !== 'number') {
+        return 0;
+      }
+      return Math.max(0, Math.min(100, value));
+    }
+
+    function formatEpochSeconds(epochSeconds) {
+      if (typeof epochSeconds !== 'number' || !Number.isFinite(epochSeconds)) {
+        return '';
+      }
+
+      return new Date(epochSeconds * 1000).toLocaleString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    }
+
+    function formatDuration(seconds) {
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) {
+        return '';
+      }
+
+      const minutes = Math.round(seconds / 60);
+      const days = Math.floor(minutes / 1440);
+      const hours = Math.floor((minutes % 1440) / 60);
+      const restMinutes = minutes % 60;
+      const parts = [];
+
+      if (days) {
+        parts.push(`${days}天`);
+      }
+      if (hours) {
+        parts.push(`${hours}小时`);
+      }
+      if (!days && restMinutes) {
+        parts.push(`${restMinutes}分钟`);
+      }
+
+      return parts.join('') || '不到1分钟';
+    }
+
+    function formatResetText(runtime, prefix) {
+      const resetAfter = getRuntimeValue(runtime, `${prefix}_reset_after_seconds`);
+      const resetAt = getRuntimeValue(runtime, `${prefix}_reset_at`);
+      const duration = formatDuration(resetAfter);
+      const time = formatEpochSeconds(resetAt);
+
+      if (duration && time) {
+        return `窗口重置：约 ${duration}后 (${time})`;
+      }
+      if (time) {
+        return `窗口重置：${time}`;
+      }
+      return '窗口重置：--';
+    }
+
+    function formatLastChecked(runtime) {
+      const value = getRuntimeValue(runtime, 'last_checked_at');
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return '尚未检查';
+      }
+
+      return new Date(value).toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
+    }
+
+    function getAvailability(item) {
+      if (item.runtime && item.runtime.available === false) {
+        return 'unavailable';
+      }
+      return 'available';
+    }
+
+    function getRuntimeError(runtime) {
+      if (runtime && typeof runtime.last_error === 'string' && runtime.last_error.trim()) {
+        return runtime.last_error.trim();
+      }
+
+      const summary = runtime && typeof runtime.runtime_summary === 'string' ? runtime.runtime_summary : '';
+      const match = summary.match(/错误=(.+)$/);
+      return match ? match[1].trim() : '';
+    }
+
+    function formatReasonText(reason) {
+      const reasonMap = {
+        ok: '正常',
+        unchecked: '未检查',
+        apikey: 'API Key 上游',
+        missing_credentials: '缺少凭证',
+        rate_limit_not_allowed: '额度不可用',
+        rate_limit_reached: '额度已用尽',
+        membership_expired: '会员已过期',
+        responses_insufficient_quota: 'Responses 配额不足',
+        responses_usage_limit_reached: 'Responses 窗口额度已用尽',
+        responses_usage_not_included: 'Responses 套餐不支持',
+        quota_check_failed: '额度检查失败',
+      };
+
+      if (typeof reason === 'string' && reason.startsWith('remaining_below_')) {
+        return '5小时配额过低';
+      }
+
+      if (typeof reason === 'string' && reason.startsWith('secondary_remaining_not_above_')) {
+        return '周配额过低';
+      }
+
+      return reasonMap[reason] || reason || '未知';
+    }
+
+    function getHealthText(item) {
+      if (isApiKeyConfig(item)) {
+        return '不检查额度';
+      }
+
+      if (item.runtime?.available === false) {
+        return formatReasonText(item.runtime?.reason);
+      }
+
+      return formatReasonText(item.runtime?.reason || 'ok');
+    }
+
+    function isRetryableNetworkProblem(item) {
+      const text = `${getRuntimeError(item && item.runtime)} ${item?.runtime?.runtime_summary || ''}`.toLowerCase();
+      return /network|socket|tls|econnreset|etimedout|timeout|connection/.test(text);
+    }
+
+    function renderQuota(label, icon, value, resetText) {
+      const tone = getPercentTone(value);
+      const toneClass = tone ? ` ${tone}` : '';
+      return `
+        <div class="quota-row">
+          <div class="quota-meta">
+            <div class="quota-label">${icon}<span>${escapeHtml(label)}</span></div>
+            <div class="quota-percent${toneClass}">${escapeHtml(formatPercent(value))}</div>
+          </div>
+          <div class="bar" aria-hidden="true">
+            <div class="bar-fill${toneClass}" style="--value: ${clampPercent(value)}%"></div>
+          </div>
+          <div class="reset-text" title="${escapeHtml(resetText)}">${escapeHtml(resetText)}</div>
+        </div>
+      `;
+    }
+
+    function renderAccountCard(item) {
+      const availability = getAvailability(item);
+      const primaryPercent = getPrimaryPercent(item.runtime);
+      const weeklyPercent = getWeeklyPercent(item.runtime);
+      const planLabel = getPlanLabel(item);
+      const errorText = getRuntimeError(item.runtime);
+      const healthText = getHealthText(item);
+      const cardClass = [
+        'account-card',
+        item.is_active ? 'current' : '',
+        availability === 'unavailable' ? 'unavailable' : '',
+      ].filter(Boolean).join(' ');
+      const planClass = planLabel === 'TEAM' ? 'team' : 'plan';
+      const quotaContent = isApiKeyConfig(item)
+        ? '<div class="api-key-note">API Key 上游不做 Codex 额度检查。请求会按支持能力转发到配置的 Base URL。</div>'
+        : `
+          <div class="quota-block">
+            ${renderQuota('5小时配额', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>', primaryPercent, formatResetText(item.runtime, 'primary'))}
+            ${renderQuota('周配额', '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>', weeklyPercent, formatResetText(item.runtime, 'secondary'))}
+          </div>
+        `;
+      const detailTitle = errorText ? `异常原因：${errorText}` : `状态：${healthText}`;
+      const detailLine = errorText
+        ? `<div class="detail-line error" title="${escapeHtml(detailTitle)}">异常原因：${escapeHtml(errorText)}</div>`
+        : `<div class="detail-line" title="${escapeHtml(detailTitle)}">状态：${escapeHtml(healthText)}</div>`;
+
+      return `
+        <article class="${cardClass}" data-account-card data-index="${item.index}">
+          <div class="account-head">
+            <div class="account-name" title="${escapeHtml(getDisplayName(item))}">${escapeHtml(getDisplayName(item))}</div>
+            <div class="pill-row">
+              <span class="pill ${planClass}">${escapeHtml(planLabel)}</span>
+            </div>
+          </div>
+
+          <div class="status-row">
+            <span class="status-chip ${availability === 'unavailable' ? 'bad' : 'ok'}">${availability === 'unavailable' ? '不可用' : '可用'}</span>
+            <span class="status-chip ${availability === 'unavailable' ? 'bad' : 'ok'}">${escapeHtml(healthText)}</span>
+            ${item.is_active ? '<span class="status-chip current">当前使用</span>' : ''}
+          </div>
+
+          ${quotaContent}
+
+          <div class="card-footer">
+            <div>
+              <div class="stamp">最后检查：${escapeHtml(formatLastChecked(item.runtime))}</div>
+              ${detailLine}
+            </div>
+            <div class="card-actions">
+              <button class="card-action" type="button" data-action="activate" data-index="${item.index}" ${item.is_active ? 'disabled' : ''} title="${item.is_active ? '当前使用' : '切换'}" aria-label="${item.is_active ? '当前使用' : '切换'}">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <button class="card-action" type="button" data-action="refresh" data-index="${item.index}" ${isApiKeyConfig(item) ? 'disabled' : ''} title="${isApiKeyConfig(item) ? 'API Key 上游不需要刷新额度' : '只刷新此账号额度'}" aria-label="${isApiKeyConfig(item) ? 'API Key 上游不需要刷新额度' : '只刷新此账号额度'}">
+                <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+              </button>
+              <button class="card-action danger" type="button" data-action="delete" data-index="${item.index}" title="删除" aria-label="删除">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function getManagedConfigs() {
+      return Array.isArray(snapshot?.configs) ? snapshot.configs : [];
+    }
+
+    function getVisibleAccounts() {
+      const query = searchInput.value.trim().toLowerCase();
+      const filter = filterSelect.value;
+      const sort = sortSelect.value;
+
+      const accounts = getManagedConfigs().filter(item => {
+        if (query && !getAccountText(item).toLowerCase().includes(query)) {
+          return false;
+        }
+        if (filter === 'current') {
+          return item.is_active;
+        }
+        if (filter === 'available') {
+          return item.runtime?.available !== false;
+        }
+        if (filter === 'unavailable') {
+          return item.runtime?.available === false;
+        }
+        return true;
+      });
+
+      accounts.sort((left, right) => {
+        if (sort === 'quota') {
+          return (getPrimaryPercent(right.runtime) ?? -1) - (getPrimaryPercent(left.runtime) ?? -1);
+        }
+        if (sort === 'checked') {
+          return (right.runtime?.last_checked_at || 0) - (left.runtime?.last_checked_at || 0);
+        }
+        return left.index - right.index;
+      });
+
+      return accounts;
+    }
+
+    function updateFilterLabel() {
+      const count = getManagedConfigs().length;
+      const labels = {
+        all: `全部 (${count})`,
+        current: '当前',
+        available: '可用',
+        unavailable: '不可用',
+      };
+
+      for (const option of filterSelect.options) {
+        option.textContent = labels[option.value] || option.textContent;
+      }
+    }
+
+    function renderAccounts() {
+      updateFilterLabel();
+      accountsGrid.className = 'accounts-grid';
+      const accounts = getVisibleAccounts();
+
+      if (!accounts.length) {
+        accountsGrid.innerHTML = '<div class="empty">当前没有匹配的 Codex 账号。</div>';
+        return;
+      }
+
+      accountsGrid.innerHTML = accounts.map(renderAccountCard).join('');
+    }
+
+    function renderApiKeys(apikeys) {
+      apiKeyStatusTitle.textContent = apikeys.length ? `入口 apikey (${apikeys.length})` : '入口 apikey';
+
+      if (!apikeys.length) {
+        apiKeysListEl.innerHTML = '<div class="empty">当前没有入口 apikey，请求不会校验 apikey。</div>';
+        return;
+      }
+
+      apiKeysListEl.innerHTML = apikeys.map((apikey, index) => `
+        <div class="key-item">
+          <div>
+            <div class="key-meta">apikey #${index + 1}</div>
+            <div class="key-value">${escapeHtml(apikey)}</div>
+          </div>
+          <button class="command danger" type="button" data-action="delete-apikey" data-index="${index}">删除</button>
+        </div>
+      `).join('');
+    }
+
+    function renderProxySettings(data) {
+      const info = buildProxyAccessInfo(data || {});
+      servicePortInput.value = String(info.configuredPort);
+      proxyPortInput.value = info.proxyPort ? String(info.proxyPort) : '';
+      proxyV1Url.textContent = info.portPendingRestart ? info.configuredV1Url : info.v1Url;
+
+      const proxyText = info.proxyPort
+        ? `Airouter 访问上游时会通过本机代理端口 ${info.proxyPort} 出网。`
+        : '未配置上游代理端口';
+      const restartText = info.portPendingRestart
+        ? `正在切换到 ${info.configuredPort}；当前连接仍在 ${info.runtimePort}。`
+        : `把上方地址填到 Codex/OpenAI 客户端的 Base URL；Responses 接口为 ${info.responsesUrl}。`;
+
+      proxyEndpointMeta.textContent = `${restartText} ${proxyText}`;
+    }
+
+    function renderAll() {
+      const apikeys = Array.isArray(snapshot?.apikeys) ? snapshot.apikeys : [];
+      renderAccounts();
+      renderApiKeys(apikeys);
+      renderProxySettings(snapshot || {});
+      rawJsonInput.placeholder = getConfigGuideContent(snapshot || {}).rawJsonPlaceholder;
+      legacyLink.href = withAuthToken('/admin/configs');
+    }
+
+    function getSelectedConfigMode() {
+      const selected = configModeButtons.find(button => button.classList.contains('active'));
+      return selected ? selected.dataset.configMode : 'token';
+    }
+
+    function updateConfigMode(mode) {
+      const nextMode = mode === 'apikey' ? 'apikey' : 'token';
+      configModeButtons.forEach(button => {
+        const active = button.dataset.configMode === nextMode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      tokenConfigPanel.hidden = nextMode !== 'token';
+      apiKeyConfigPanel.hidden = nextMode !== 'apikey';
+      addConfigModeTitle.textContent = nextMode === 'token' ? 'Token 模式' : 'API Key 模式';
+    }
+
+    function getSelectedApiKeySupport() {
+      return [...document.querySelectorAll('input[name="apiKeySupport"]:checked')]
+        .map(input => input.value);
+    }
+
+    function clearConfigForm() {
+      rawJsonInput.value = '';
+      apiKeyBaseUrlInput.value = '';
+      apiKeyInput.value = '';
+      apiKeyDescriptionInput.value = '';
+      document.querySelectorAll('input[name="apiKeySupport"]').forEach(input => {
+        input.checked = input.value === 'gpt';
+      });
+    }
+
+    async function loadSnapshot(message = '', options = {}) {
+      try {
+        const request = buildConfigSnapshotRequest(Boolean(options.forceRefresh));
+        snapshot = await requestJson(request.url, request.options);
+        renderAll();
+        setMessage(message ? 'info' : '', message);
+      } catch (error) {
+        if (error.status === 401) {
+          setMessage('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。');
+          accountsGrid.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
+          return;
+        }
+
+        setMessage('error', error.message);
+        accountsGrid.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function buildConfigItemFromInput() {
+      return buildConfigItemFromForm({
+        mode: getSelectedConfigMode(),
+        tokenRawJson: rawJsonInput.value,
+        apiKey: apiKeyInput.value,
+        baseUrl: apiKeyBaseUrlInput.value,
+        description: apiKeyDescriptionInput.value,
+        support: getSelectedApiKeySupport(),
+      });
+    }
+
+    async function addConfig() {
+      const mode = getSelectedConfigMode();
+      const configItem = buildConfigItemFromInput();
+      snapshot = await requestJson('/admin/api/configs', {
+        method: 'POST',
+        body: JSON.stringify({
+          config_type: mode,
+          raw_json: JSON.stringify(configItem),
+        }),
+      });
+
+      clearConfigForm();
+      renderAll();
+      switchSection('accountsSection');
+      setMessage('info', mode === 'token' ? 'Codex 账号已写入配置文件。' : 'API Key 上游已写入配置文件。');
+    }
+
+    async function addApiKey() {
+      const result = await requestJson('/admin/api/apikeys', {
+        method: 'POST',
+      });
+
+      snapshot = result;
+      renderAll();
+      setMessage('info', `已新增 apikey: ${result.generated_apikey}`);
+    }
+
+    async function deleteApiKey(index) {
+      snapshot = await requestJson(`/admin/api/apikeys/${index}`, {
+        method: 'DELETE',
+      });
+      renderAll();
+      setMessage('info', 'apikey 已删除。');
+    }
+
+    function readPortSettingsFromInputs() {
+      const port = normalizePortValue(servicePortInput.value);
+      if (!port) {
+        throw new Error('服务端口必须是 1-65535 之间的数字');
+      }
+
+      const rawProxyPort = proxyPortInput.value.trim();
+      const proxyPort = rawProxyPort ? normalizePortValue(rawProxyPort) : null;
+      if (rawProxyPort && !proxyPort) {
+        throw new Error('代理端口必须是 1-65535 之间的数字，或留空');
+      }
+
+      return {
+        port,
+        proxy_port: proxyPort,
+      };
+    }
+
+    async function saveProxySettings() {
+      const result = await requestJson('/admin/api/settings', {
+        method: 'POST',
+        body: JSON.stringify(readPortSettingsFromInputs()),
+      });
+
+      snapshot = result;
+      renderAll();
+
+      const networkSettings = result && result.network_settings ? result.network_settings : {};
+      if (networkSettings.port_changed && networkSettings.next_port) {
+        setMessage('info', `端口配置已即时生效，正在跳转到 localhost:${networkSettings.next_port}。`);
+        window.setTimeout(() => {
+          const nextUrl = new URL(window.location.href);
+          nextUrl.port = String(networkSettings.next_port);
+          window.location.href = nextUrl.toString();
+        }, 700);
+        return;
+      }
+
+      setMessage('info', '端口配置已保存并即时生效。');
+    }
+
+    async function activateConfig(index) {
+      snapshot = await requestJson(`/admin/api/configs/${index}/activate`, {
+        method: 'POST',
+      });
+      renderAll();
+      setMessage('info', '当前账号已临时切换。');
+    }
+
+    async function deleteConfig(index) {
+      snapshot = await requestJson(`/admin/api/configs/${index}`, {
+        method: 'DELETE',
+      });
+      renderAll();
+      setMessage('info', '配置项已删除并热重载。');
+    }
+
+    function findSnapshotConfig(index) {
+      const targetIndex = Number.parseInt(String(index), 10);
+      return getManagedConfigs().find(item => item.index === targetIndex) || null;
+    }
+
+    function mergeSingleRefreshSnapshot(index, response) {
+      const targetIndex = Number.parseInt(String(index), 10);
+      const latestConfigs = Array.isArray(response?.configs) ? response.configs : [];
+      const currentConfigs = getManagedConfigs();
+      const refreshedConfig = latestConfigs.find(item => item.index === targetIndex);
+
+      if (!currentConfigs.length || !refreshedConfig) {
+        snapshot = response;
+        return;
+      }
+
+      const activeIndex = response && Object.prototype.hasOwnProperty.call(response, 'active_config_index')
+        ? response.active_config_index
+        : snapshot?.active_config_index;
+      const mergedConfigs = currentConfigs.map(item => {
+        const latestItem = latestConfigs.find(nextItem => nextItem.index === item.index);
+        if (item.index === targetIndex) {
+          return refreshedConfig;
+        }
+        if (!latestItem) {
+          return item;
+        }
+        return {
+          ...item,
+          is_active: latestItem.is_active,
+        };
+      });
+
+      snapshot = {
+        ...snapshot,
+        ...response,
+        active_config_index: activeIndex,
+        configs: mergedConfigs,
+      };
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => window.setTimeout(resolve, ms));
+    }
+
+    function summarizeRefreshResult(items) {
+      const configs = Array.isArray(items) ? items : getManagedConfigs();
+      const checkedConfigs = configs.filter(item => !isApiKeyConfig(item));
+      const unavailableCount = checkedConfigs.filter(item => item.runtime?.available === false).length;
+      const availableCount = checkedConfigs.length - unavailableCount;
+
+      return `刷新完成：${availableCount} 个可用，${unavailableCount} 个不可用。`;
+    }
+
+    async function refreshSingleConfigWithRetry(index, options = {}) {
+      const { maxAttempts = 3 } = options;
+      let attempt = 0;
+      let target = null;
+
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        const response = await requestJson(`/admin/api/configs/${index}/refresh`, {
+          method: 'POST',
+        });
+        mergeSingleRefreshSnapshot(index, response);
+        target = findSnapshotConfig(index);
+        renderAll();
+
+        if (!target || !isRetryableNetworkProblem(target) || attempt >= maxAttempts) {
+          break;
+        }
+
+        setMessage('info', `此账号网络异常，正在第 ${attempt + 1} 次重试刷新...`);
+        await delay(500);
+      }
+
+      return {
+        attempts: attempt,
+        target,
+      };
+    }
+
+    async function refreshAllConfigsWithRetry(options = {}) {
+      const { maxAttempts = 3 } = options;
+      let attempt = 0;
+      let retryableItems = [];
+
+      while (attempt < maxAttempts) {
+        attempt += 1;
+        const request = buildConfigSnapshotRequest(true);
+        snapshot = await requestJson(request.url, request.options);
+        renderAll();
+        retryableItems = getManagedConfigs().filter(item => !isApiKeyConfig(item) && isRetryableNetworkProblem(item));
+
+        if (!retryableItems.length || attempt >= maxAttempts) {
+          break;
+        }
+
+        setMessage('info', `发现网络异常，正在第 ${attempt + 1} 次重试刷新全部账号...`);
+        await delay(500);
+      }
+
+      return {
+        attempts: attempt,
+        retryableItems,
+      };
+    }
+
+    function setButtonLoading(button, loading) {
+      if (!button) {
+        return;
+      }
+
+      button.disabled = loading;
+      button.classList.toggle('is-loading', loading);
+      button.setAttribute('aria-busy', loading ? 'true' : 'false');
+    }
+
+    async function openExternalLink(url) {
+      try {
+        await requestJson('/admin/api/open-external', {
+          method: 'POST',
+          body: JSON.stringify({ url }),
+        });
+      } catch (error) {
+        const opened = window.open(url, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          window.location.href = url;
+        }
+      }
+    }
+
+    function armDeleteButton(button, message) {
+      if (button.dataset.confirm === 'true') {
+        window.clearTimeout(Number(button.dataset.confirmTimer || 0));
+        delete button.dataset.confirm;
+        delete button.dataset.confirmTimer;
+        button.classList.remove('confirming');
+        return true;
+      }
+
+      button.dataset.confirm = 'true';
+      button.classList.add('confirming');
+      setMessage('info', message);
+
+      const timer = window.setTimeout(() => {
+        delete button.dataset.confirm;
+        delete button.dataset.confirmTimer;
+        button.classList.remove('confirming');
+      }, 5000);
+      button.dataset.confirmTimer = String(timer);
+      return false;
+    }
+
+    document.querySelectorAll('[data-section-target]').forEach(button => {
+      button.addEventListener('click', () => switchSection(button.dataset.sectionTarget));
+    });
+
+    document.querySelectorAll('[data-jump-section]').forEach(button => {
+      button.addEventListener('click', () => switchSection(button.dataset.jumpSection));
+    });
+
+    document.querySelectorAll('[data-open-external]').forEach(button => {
+      button.addEventListener('click', async () => openExternalLink(button.dataset.openExternal));
+    });
+
+    configModeButtons.forEach(button => {
+      button.addEventListener('click', () => updateConfigMode(button.dataset.configMode));
+    });
+
+    searchInput.addEventListener('input', renderAccounts);
+    filterSelect.addEventListener('change', renderAccounts);
+    sortSelect.addEventListener('change', renderAccounts);
+
+    refreshButton.addEventListener('click', async () => {
+      setButtonLoading(refreshButton, true);
+      try {
+        const result = await refreshAllConfigsWithRetry();
+        const retryText = result.attempts > 1 ? ` 已重试 ${result.attempts - 1} 次。` : '';
+        setMessage('info', `${summarizeRefreshResult()}${retryText}`);
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        setButtonLoading(refreshButton, false);
+      }
+    });
+
+    addConfigButton.addEventListener('click', async () => {
+      addConfigButton.disabled = true;
+      try {
+        await addConfig();
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        addConfigButton.disabled = false;
+      }
+    });
+
+    clearConfigButton.addEventListener('click', () => {
+      clearConfigForm();
+      setMessage('', '');
+    });
+
+    addApiKeyButton.addEventListener('click', async () => {
+      addApiKeyButton.disabled = true;
+      try {
+        await addApiKey();
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        addApiKeyButton.disabled = false;
+      }
+    });
+
+    saveProxySettingsButton.addEventListener('click', async () => {
+      saveProxySettingsButton.disabled = true;
+      try {
+        await saveProxySettings();
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        saveProxySettingsButton.disabled = false;
+      }
+    });
+
+    accountsGrid.addEventListener('click', async event => {
+      const button = event.target.closest('[data-action]');
+      if (!button) {
+        return;
+      }
+
+      const action = button.dataset.action;
+      button.disabled = true;
+      try {
+        if (action === 'activate') {
+          await activateConfig(button.dataset.index);
+          return;
+        }
+        if (action === 'refresh') {
+          setButtonLoading(button, true);
+          const result = await refreshSingleConfigWithRetry(button.dataset.index);
+          const target = result.target;
+          const retryText = result.attempts > 1 ? ` 已重试 ${result.attempts - 1} 次。` : '';
+          if (target && target.runtime?.available === false) {
+            const reason = getRuntimeError(target.runtime) || getHealthText(target);
+            setMessage('error', `仅刷新此账号完成：账号不可用，${reason}。${retryText}`);
+          } else {
+            setMessage('info', `仅刷新此账号完成：账号可用。${retryText}`);
+          }
+          return;
+        }
+        if (action === 'delete') {
+          button.disabled = false;
+          if (!armDeleteButton(button, '再次点击确认删除这个配置项。')) {
+            return;
+          }
+          button.disabled = true;
+          await deleteConfig(button.dataset.index);
+        }
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        setButtonLoading(button, false);
+      }
+    });
+
+    apiKeysListEl.addEventListener('click', async event => {
+      const button = event.target.closest('[data-action="delete-apikey"]');
+      if (!button) {
+        return;
+      }
+
+      if (!armDeleteButton(button, '再次点击确认删除这个 apikey。')) {
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        await deleteApiKey(button.dataset.index);
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    updateConfigMode('token');
+    legacyLink.href = withAuthToken('/admin/configs');
+    loadSnapshot();
+  </script>
+</body>
+</html>

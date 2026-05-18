@@ -862,6 +862,7 @@ function serializeAccountStatus(accountStatus) {
         secondary_reset_after_seconds: accountStatus.secondaryResetAfterSeconds,
         last_checked_at: accountStatus.lastCheckedAt,
         reason: accountStatus.reason,
+        last_error: accountStatus.lastError,
         runtime_summary: accountStatus.runtimeSummary,
         summary_line: accountStatus.summaryLine,
     };
@@ -902,6 +903,23 @@ async function refreshConfigAdminResponse(options = {}) {
 
     if (manager && shouldRefreshQuota) {
         await manager.refreshQuotas('admin_refresh');
+    }
+
+    return buildResponse();
+}
+
+async function refreshSingleConfigAdminResponse(index, options = {}) {
+    const manager = options.accountManager || accountManager;
+    const buildResponse = options.buildResponse || buildConfigAdminResponse;
+
+    if (!manager || typeof manager.refreshConfig !== 'function') {
+        throw new ConfigEditorError('账号管理器未初始化');
+    }
+
+    try {
+        await manager.refreshConfig(index, 'admin_refresh_single');
+    } catch (err) {
+        throw new ConfigEditorError(err.message);
     }
 
     return buildResponse();
@@ -1568,6 +1586,10 @@ app.get('/admin/configs', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'config-admin.html'));
 });
 
+app.get('/admin/configs/v2', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'codex-accounts.html'));
+});
+
 app.get('/admin/api/configs', (req, res) => {
     try {
         res.json(buildConfigAdminResponse());
@@ -1585,6 +1607,19 @@ app.post('/admin/api/configs/refresh', async (req, res) => {
     } catch (err) {
         res.status(500).json({
             error: '刷新额度失败',
+            details: err.message
+        });
+    }
+});
+
+app.post('/admin/api/configs/:index/refresh', async (req, res) => {
+    try {
+        const targetIndex = parseConfigIndex(req.params.index);
+        res.json(await refreshSingleConfigAdminResponse(targetIndex));
+    } catch (err) {
+        const statusCode = err instanceof ConfigEditorError ? 400 : 500;
+        res.status(statusCode).json({
+            error: statusCode === 400 ? '账号刷新失败' : '刷新额度失败',
             details: err.message
         });
     }
@@ -1908,5 +1943,6 @@ module.exports = {
     reportBusinessRequestError,
     registerProcessSafetyHandlers,
     refreshConfigAdminResponse,
+    refreshSingleConfigAdminResponse,
     startServer
 };
