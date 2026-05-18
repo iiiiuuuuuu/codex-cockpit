@@ -53,19 +53,27 @@
 
 当 `/backend-api/wham/usage` 返回成功后，当前实现按以下顺序判定账号可用性：
 
-1. `rate_limit.allowed === false`
+1. 订阅/会员显式失效
+   - 包括 `subscription.active === false`、`has_active_subscription === false`、`plan_type === "free"` 等形态
+   - 标记为不可用
+   - `reason = membership_expired`
+2. 主额度窗口存在但周额度窗口缺失，且没有明确的付费计划信号
+   - 作为会员过期/未订阅的兼容兜底
+   - 标记为不可用
+   - `reason = membership_expired`
+3. `rate_limit.allowed === false`
    - 标记为不可用
    - `reason = rate_limit_not_allowed`
-2. `rate_limit.limit_reached === true`
+4. `rate_limit.limit_reached === true`
    - 标记为不可用
    - `reason = rate_limit_reached`
-3. 主额度窗口剩余百分比 `< minRemainingPercent`
+5. 主额度窗口剩余百分比 `< minRemainingPercent`
    - 标记为不可用
    - `reason = remaining_below_3%`
-4. 周额度窗口剩余百分比 `<= minWeeklyRemainingPercent`
+6. 周额度窗口剩余百分比 `<= minWeeklyRemainingPercent`
    - 标记为不可用
    - `reason = secondary_remaining_not_above_1%`
-5. 以上都不满足
+7. 以上都不满足
    - 标记为可用
    - `reason = ok`
 

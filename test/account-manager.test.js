@@ -438,6 +438,56 @@ test('applyQuotaPayload marks the account unavailable when weekly quota is not a
   assert.equal(manager.getActiveConfig(), configs[1]);
 });
 
+test('applyQuotaPayload marks an explicit free plan as membership expired', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { available: true, reason: 'ok' }),
+  ];
+  const { manager } = createManager(configs);
+
+  const selected = manager.applyQuotaPayload(configs[0], {
+    plan_type: 'free',
+    rate_limit: {
+      allowed: true,
+      limit_reached: false,
+      primary_window: { used_percent: 3, reset_at: 1779413261 },
+      secondary_window: { used_percent: 10, reset_at: 1779416861 },
+    },
+  });
+
+  assert.equal(selected, configs[1]);
+  assert.equal(configs[0].runtime.available, false);
+  assert.equal(configs[0].runtime.reason, 'membership_expired');
+  assert.equal(configs[0].runtime.primaryRemainingPercent, 97);
+  assert.equal(configs[0].runtime.secondaryRemainingPercent, 90);
+  assert.equal(manager.getActiveConfig(), configs[1]);
+});
+
+test('applyQuotaPayload marks missing weekly quota on a token account as membership expired', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { available: true, reason: 'ok' }),
+  ];
+  const { manager } = createManager(configs);
+
+  const selected = manager.applyQuotaPayload(configs[0], {
+    rate_limit: {
+      allowed: true,
+      limit_reached: false,
+      primary_window: { used_percent: 3, reset_at: 1779413261 },
+    },
+  });
+
+  assert.equal(selected, configs[1]);
+  assert.equal(configs[0].runtime.available, false);
+  assert.equal(configs[0].runtime.reason, 'membership_expired');
+  assert.equal(configs[0].runtime.remainingPercent, 97);
+  assert.equal(configs[0].runtime.primaryRemainingPercent, 97);
+  assert.equal(configs[0].runtime.secondaryRemainingPercent, null);
+  assert.equal(configs[0].runtime.secondaryResetAt, null);
+  assert.equal(manager.getActiveConfig(), configs[1]);
+});
+
 test('applyQuotaPayload switches away from the active account when it becomes unavailable', () => {
   const configs = [
     createConfig(0, { available: true, reason: 'ok' }),
