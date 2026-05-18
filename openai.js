@@ -37,6 +37,7 @@ const {
     buildImportedConfigItem,
     deleteConfigItem,
     readParsedConfigFile,
+    updateConfigItem,
     updateConfigSettings,
     writeParsedConfigFile
 } = require('./app/config-editor');
@@ -1659,6 +1660,35 @@ app.post('/admin/api/configs/:index/activate', async (req, res) => {
         const statusCode = err instanceof ConfigEditorError ? 400 : 500;
         res.status(statusCode).json({
             error: statusCode === 400 ? '账号切换失败' : '配置更新失败',
+            details: err.message
+        });
+    }
+});
+
+app.patch('/admin/api/configs/:index', async (req, res) => {
+    try {
+        const parsed = readParsedConfigFile(CONFIG_FILE);
+        const targetIndex = parseConfigIndex(req.params.index);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const alias = typeof body.alias === 'string' ? body.alias.trim() : '';
+        const currentItem = parsed.configs[targetIndex];
+
+        if (!currentItem) {
+            throw new ConfigEditorError('配置项不存在');
+        }
+
+        const nextItem = {
+            ...currentItem,
+            alias,
+        };
+
+        const nextParsed = updateConfigItem(parsed, targetIndex, nextItem);
+        persistConfigWithoutRuntimeReload(nextParsed);
+        res.status(200).json(buildConfigAdminResponse());
+    } catch (err) {
+        const statusCode = err instanceof ConfigEditorError ? 400 : 500;
+        res.status(statusCode).json({
+            error: statusCode === 400 ? '配置别名更新失败' : '配置更新失败',
             details: err.message
         });
     }

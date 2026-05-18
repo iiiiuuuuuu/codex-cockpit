@@ -77,7 +77,7 @@ function createManager(configs, overrides = {}) {
     quotaCheckIntervalMs: 60 * 1000,
     minRemainingPercent: 3,
     buildAuthHeadersForConfig: config => ({
-      authorization: `Bearer ${config.access_token}`,
+      authorization: `Bearer ${config.type === 'apikey' ? config.apiKey : config.access_token}`,
       'chatgpt-account-id': config.account_id,
     }),
     requestBufferedFn: overrides.requestBufferedFn,
@@ -1060,4 +1060,69 @@ test('refreshQuotas releases the monitor lock after a quota timeout', async () =
   assert.equal(calls.length, 2);
   assert.equal(configs[0].runtime.reason, 'ok');
   assert.equal(configs[0].runtime.available, true);
+});
+
+test('refreshConfig probes a claude API key config and marks it available', async () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://claude.example.com/v1',
+      apiKey: 'sk-claude',
+      support: ['claude'],
+    }),
+  ];
+  const calls = [];
+  const { manager } = createManager(configs, {
+    requestBufferedFn: requestOptions => {
+      calls.push(requestOptions);
+      return Promise.resolve({
+        statusCode: 200,
+        bodyText: JSON.stringify({
+          type: 'message',
+          id: 'msg_1',
+        }),
+      });
+    },
+  });
+
+  await manager.refreshConfig(0, 'admin_refresh_single');
+
+  assert.equal(configs[0].runtime.available, true);
+  assert.equal(configs[0].runtime.reason, 'apikey');
+  assert.equal(configs[0].runtime.lastCheckedAt, 1713337200000);
+  assert.equal(configs[0].runtime.lastError, null);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].targetUrl, 'https://claude.example.com/v1/messages');
+  assert.equal(calls[0].headers.authorization, 'Bearer sk-claude');
+  assert.equal(calls[0].headers['anthropic-version'], '2023-06-01');
+  assert.match(calls[0].body.toString('utf8'), /ping/);
+});
+
+test('refreshConfig marks an API key config unavailable when the probe fails', async () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-invalid',
+      support: ['gpt'],
+    }),
+  ];
+  const { manager, warnings } = createManager(configs, {
+    requestBufferedFn: () => Promise.resolve({
+      statusCode: 401,
+      bodyText: JSON.stringify({
+        error: {
+          message: 'invalid api key',
+        },
+      }),
+    }),
+  });
+
+  await manager.refreshConfig(0, 'admin_refresh_single');
+
+  assert.equal(configs[0].runtime.available, false);
+  assert.equal(configs[0].runtime.reason, 'apikey_check_failed');
+  assert.equal(configs[0].runtime.lastCheckedAt, 1713337200000);
+  assert.equal(configs[0].runtime.lastError, 'invalid api key');
+  assert.equal(warnings.some(line => /没有可用账号/.test(line)), true);
 });

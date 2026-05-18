@@ -81,6 +81,7 @@ function createAccountManager(options) {
       [`remaining_below_${minRemainingPercent}%`]: `剩余额度低于 ${minRemainingPercent}%`,
       [`secondary_remaining_not_above_${minWeeklyRemainingPercent}%`]: `周额度不高于 ${minWeeklyRemainingPercent}%`,
       quota_check_failed: '额度检查失败',
+      apikey_check_failed: 'API Key 检查失败',
     };
 
     return reasonMap[reason] || reason || '未知';
@@ -463,6 +464,102 @@ function createAccountManager(options) {
     };
   }
 
+  function parseJsonBody(text) {
+    try {
+      return JSON.parse(String(text || ''));
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function extractProbeError(result) {
+    const statusCode = Number(result && result.statusCode) || 0;
+    const payload = parseJsonBody(result && result.bodyText);
+    const upstreamMessage = payload && typeof payload === 'object'
+      ? payload.error?.message || payload.message || payload.error
+      : '';
+    const message = typeof upstreamMessage === 'string' && upstreamMessage.trim()
+      ? upstreamMessage.trim()
+      : `API Key probe status ${statusCode}`;
+
+    return message;
+  }
+
+  function buildApiKeyProbeRequest(config) {
+    const baseUrl = String(config.baseUrl || '').replace(/\/+$/, '');
+
+    if (Array.isArray(config.support) && config.support.includes('claude')) {
+      const body = Buffer.from(JSON.stringify({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 8,
+        messages: [
+          {
+            role: 'user',
+            content: 'ping',
+          },
+        ],
+      }));
+
+      return {
+        method: 'POST',
+        targetUrl: `${baseUrl}/messages`,
+        headers: {
+          ...buildAuthHeadersForConfig(config),
+          'content-type': 'application/json',
+          accept: 'application/json',
+          'anthropic-version': '2023-06-01',
+          'content-length': String(body.length),
+        },
+        body,
+      };
+    }
+
+    const body = Buffer.from(JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: 'ping',
+        },
+      ],
+      max_tokens: 8,
+    }));
+
+    return {
+      method: 'POST',
+      targetUrl: `${baseUrl}/chat/completions`,
+      headers: {
+        ...buildAuthHeadersForConfig(config),
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'content-length': String(body.length),
+      },
+      body,
+    };
+  }
+
+  async function checkApiKeyConfig(config) {
+    try {
+      const result = await withQuotaCheckTimeout(requestBufferedFn({
+        ...buildApiKeyProbeRequest(config),
+        timeoutMs: quotaCheckTimeoutMs,
+        maxRedirects: 2,
+      }));
+
+      config.runtime.available = result.statusCode >= 200 && result.statusCode < 300;
+      config.runtime.reason = config.runtime.available ? 'apikey' : 'apikey_check_failed';
+      config.runtime.lastCheckedAt = now();
+      config.runtime.lastError = config.runtime.available ? null : extractProbeError(result);
+    } catch (err) {
+      config.runtime.available = false;
+      config.runtime.reason = 'apikey_check_failed';
+      config.runtime.lastCheckedAt = now();
+      config.runtime.lastError = err.message;
+    }
+
+    return config.runtime;
+  }
+
   async function refreshConfigAccessToken(config) {
     const refreshToken = normalizeString(config.refresh_token);
 
@@ -639,6 +736,9 @@ function createAccountManager(options) {
     const config = configs[index];
     if (shouldUseQuotaMonitoring(config.type)) {
       await refreshSingleConfigWithLogging(config, reason);
+      ensureActiveConfig(reason);
+    } else if (config.type === 'apikey') {
+      await checkApiKeyConfig(config);
       ensureActiveConfig(reason);
     }
 

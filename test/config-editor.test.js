@@ -209,6 +209,7 @@ test('updateConfigItem overwrites editable fields but keeps unknown keys on the 
         access_token: 'token-1',
         account_id: 'account-1',
         description: 'primary',
+        alias: 'main',
         custom_note: 'keep-me',
       },
     ],
@@ -224,6 +225,7 @@ test('updateConfigItem overwrites editable fields but keeps unknown keys on the 
     access_token: 'token-9',
     account_id: 'account-9',
     description: 'rotated',
+    alias: 'main',
     custom_note: 'keep-me',
   });
 });

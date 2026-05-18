@@ -374,8 +374,8 @@
 
     .accounts-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 390px));
-      gap: 18px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
       align-items: stretch;
     }
 
@@ -388,11 +388,11 @@
 
     .account-card {
       min-width: 0;
-      min-height: 304px;
+      min-height: 224px;
       display: grid;
-      grid-template-rows: auto auto minmax(116px, 1fr) auto;
-      padding: 18px;
-      border-radius: 14px;
+      grid-template-rows: auto auto minmax(84px, 1fr) auto;
+      padding: 10px;
+      border-radius: 12px;
       position: relative;
       overflow: hidden;
     }
@@ -408,29 +408,42 @@
 
     .account-head {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
+      gap: 6px;
       align-items: start;
-      margin-bottom: 12px;
+      margin-bottom: 6px;
+    }
+
+    .account-topline {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: start;
+      min-width: 0;
+    }
+
+    .account-title-group {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px;
+      align-items: center;
+      min-width: 0;
     }
 
     .account-name {
       min-width: 0;
-      min-height: 42px;
-      font-size: 16px;
-      line-height: 1.28;
+      min-height: 20px;
+      font-size: 13px;
+      line-height: 1.15;
       font-weight: 900;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
+      white-space: nowrap;
     }
 
     .pill-row {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
       flex-wrap: wrap;
       justify-content: flex-end;
     }
@@ -438,11 +451,11 @@
     .pill {
       display: inline-flex;
       align-items: center;
-      min-height: 30px;
-      padding: 0 12px;
+      min-height: 22px;
+      padding: 0 7px;
       border-radius: 999px;
       color: #fff;
-      font-size: 12px;
+      font-size: 9px;
       font-weight: 900;
       letter-spacing: 0.03em;
       white-space: nowrap;
@@ -459,18 +472,18 @@
     .status-row {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      min-height: 28px;
-      margin-bottom: 14px;
+      gap: 4px;
+      min-height: 22px;
+      margin-bottom: 6px;
     }
 
     .status-chip {
       display: inline-flex;
       align-items: center;
-      min-height: 28px;
-      padding: 0 10px;
+      min-height: 22px;
+      padding: 0 7px;
       border-radius: 999px;
-      font-size: 13px;
+      font-size: 10px;
       font-weight: 900;
       color: #42526a;
       background: #eef2f7;
@@ -493,22 +506,22 @@
 
     .quota-block {
       display: grid;
-      gap: 14px;
+      gap: 6px;
       align-content: start;
-      margin-bottom: 14px;
+      margin-bottom: 6px;
     }
 
     .quota-row {
       display: grid;
-      gap: 7px;
+      gap: 4px;
     }
 
     .quota-meta {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 12px;
+      gap: 6px;
       align-items: center;
-      min-height: 28px;
+      min-height: 22px;
     }
 
     .quota-label,
@@ -522,13 +535,18 @@
     .quota-label {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
+      gap: 6px;
       min-width: 0;
-      font-size: 14px;
+      font-size: 11px;
+    }
+
+    .quota-label svg {
+      width: 12px;
+      height: 12px;
     }
 
     .quota-percent {
-      font-size: 17px;
+      font-size: 13px;
       line-height: 1;
       font-weight: 900;
       color: var(--green);
@@ -559,10 +577,10 @@
     .bar-fill.unknown { background: #cbd5e1; }
 
     .reset-text {
-      min-height: 22px;
+      min-height: 16px;
       text-align: right;
       font-family: var(--mono);
-      font-size: 12px;
+      font-size: 10px;
       color: #a9b6c9;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -572,16 +590,16 @@
     .card-footer {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 14px;
+      gap: 8px;
       align-items: center;
-      padding-top: 12px;
+      padding-top: 6px;
       border-top: 1px solid #e8edf4;
     }
 
     .stamp {
       min-width: 0;
       color: #aab7ca;
-      font-size: 13px;
+      font-size: 10px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -589,24 +607,29 @@
 
     .card-actions {
       display: flex;
-      gap: 10px;
+      gap: 4px;
     }
 
     .card-action {
-      width: 40px;
-      height: 40px;
+      width: 26px;
+      height: 26px;
+      padding: 0;
     }
 
-    .card-action.danger.confirming,
+    .card-action svg {
+      width: 13px;
+      height: 13px;
+    }
+
     .card-action.danger:not(:disabled):hover {
       color: var(--red);
       background: #fde8e8;
     }
 
     .detail-line {
-      margin-top: 8px;
+      margin-top: 4px;
       color: #9eabba;
-      font-size: 13px;
+      font-size: 10px;
       line-height: 1.5;
       white-space: nowrap;
       text-overflow: ellipsis;
@@ -618,8 +641,8 @@
     }
 
     .api-key-note {
-      min-height: 112px;
-      padding: 14px;
+      min-height: 84px;
+      padding: 12px;
       border: 1px solid var(--line);
       border-radius: var(--radius);
       color: var(--muted);
@@ -628,29 +651,37 @@
       line-height: 1.6;
     }
 
+    .api-key-note.compact {
+      min-height: 72px;
+      padding: 10px 12px;
+      font-size: 11px;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
     .routing-rules {
       display: flex;
       align-items: center;
-      gap: 12px;
-      min-height: 46px;
-      margin: -2px 0 14px;
-      padding: 10px 14px;
-      border: 1px solid rgba(207, 218, 233, 0.78);
-      border-radius: 14px;
-      background: rgba(248, 251, 255, 0.72);
-      box-shadow: 0 8px 22px rgba(35, 49, 73, 0.05);
+      gap: 10px;
+      min-height: 40px;
+      margin: -2px 0 12px;
+      padding: 8px 12px;
+      border: 1px solid rgba(207, 218, 233, 0.74);
+      border-radius: 12px;
+      background: rgba(248, 251, 255, 0.62);
+      box-shadow: 0 6px 16px rgba(35, 49, 73, 0.04);
     }
 
     .rules-heading {
       display: inline-flex;
       align-items: center;
       flex: 0 0 auto;
-      min-height: 28px;
-      padding: 0 10px;
+      min-height: 24px;
+      padding: 0 9px;
       border-radius: 999px;
       color: var(--blue);
-      background: #e8f0ff;
-      font-size: 12px;
+      background: #edf4ff;
+      font-size: 11px;
       font-weight: 900;
       white-space: nowrap;
     }
@@ -659,7 +690,7 @@
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 4px 0;
+      gap: 0;
       min-width: 0;
       margin: 0;
       padding: 0;
@@ -668,7 +699,7 @@
 
     .rule-list li {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.35;
       font-weight: 760;
     }
@@ -677,8 +708,8 @@
       content: "";
       display: inline-block;
       width: 1px;
-      height: 12px;
-      margin: 0 10px -2px;
+      height: 10px;
+      margin: 0 8px -1px;
       background: #c9d5e6;
     }
 
@@ -793,9 +824,81 @@
     .mode-note {
       display: block;
       color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      font-weight: 650;
+    }
+
+    .field-readonly {
+      min-height: 40px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-soft);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 700;
+      word-break: break-all;
+    }
+
+    .alias-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(18, 28, 43, 0.36);
+      backdrop-filter: blur(8px);
+      z-index: 40;
+    }
+
+    .alias-modal-backdrop.show {
+      display: flex;
+    }
+
+    .alias-modal {
+      width: min(520px, 100%);
+      border: 1px solid rgba(222, 230, 241, 0.96);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 26px 60px rgba(20, 30, 46, 0.22);
+      padding: 18px;
+    }
+
+    .alias-modal-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .alias-modal-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .alias-modal-note {
+      margin: 5px 0 0;
+      color: var(--muted);
       font-size: 13px;
       line-height: 1.45;
       font-weight: 700;
+    }
+
+    .alias-modal-body {
+      display: grid;
+      gap: 12px;
+    }
+
+    .alias-modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
     }
 
     .config-panel[hidden] {
@@ -930,7 +1033,8 @@
       }
 
       .accounts-grid {
-        grid-template-columns: repeat(auto-fit, minmax(300px, 390px));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
       }
 
     }
@@ -1015,44 +1119,9 @@
         <div class="section-head">
           <div>
             <h2 class="page-title">Codex 账号管理</h2>
-            <p class="page-note">查看额度、手动切换、刷新运行态和删除不再使用的账号。</p>
+            <p class="page-note">查看当前账号、刷新单个账号、编辑别名和清理不再使用的配置。</p>
           </div>
         </div>
-
-        <section class="toolbar" aria-label="账号工具栏">
-          <label class="search">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-            <input id="searchInput" type="search" placeholder="搜索账号..." autocomplete="off">
-          </label>
-
-          <label class="select-wrap">
-            <select id="filterSelect" class="select-control" aria-label="账号筛选">
-              <option value="all">全部</option>
-              <option value="current">当前</option>
-              <option value="available">可用</option>
-              <option value="unavailable">不可用</option>
-            </select>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
-          </label>
-
-          <label class="select-wrap">
-            <select id="sortSelect" class="select-control" aria-label="账号排序">
-              <option value="index">按配置顺序</option>
-              <option value="quota">按额度</option>
-              <option value="checked">按刷新时间</option>
-            </select>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
-          </label>
-
-          <div class="button-row toolbar-actions">
-            <button class="icon-button primary" type="button" data-jump-section="addAccountSection" title="新增账号" aria-label="新增账号">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-            <button class="icon-button" type="button" id="refreshButton" title="刷新全部账号额度" aria-label="刷新全部账号额度">
-              <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
-            </button>
-          </div>
-        </section>
 
         <section class="routing-rules" aria-label="自动切换规则">
           <div class="rules-heading">自动切换</div>
@@ -1070,7 +1139,7 @@
         <div class="section-head">
           <div>
             <h2 class="page-title">新增 Codex 账号配置</h2>
-            <p class="page-note">Token 模式用于 Codex 登录态账号；API Key 模式用于兼容上游或 Claude Messages。</p>
+            <p class="page-note">Token 模式用于 Codex 登录态账号；API Key 模式用于兼容上游和 Claude Messages。</p>
           </div>
           <div class="button-row">
             <button class="command" type="button" data-open-external="https://chatgpt.com/">打开 ChatGPT</button>
@@ -1092,7 +1161,7 @@
               <span class="mode-dot" aria-hidden="true"></span>
               <span>
                 <span class="mode-name">API Key 模式</span>
-                <span class="mode-note">填写兼容上游地址和 API Key，可选择 GPT 或 Claude 能力。</span>
+                <span class="mode-note">填写 Base URL、API Key 和支持能力。</span>
               </span>
             </button>
           </div>
@@ -1151,7 +1220,7 @@
         <div class="section-head">
           <div>
             <h2 class="page-title">访问控制</h2>
-            <p class="page-note">入口 apikey 为空时，请求不会校验 apikey。</p>
+            <p class="page-note">入口 apikey 保护本地代理入口；为空时，请求不会校验。</p>
           </div>
           <button class="command primary" type="button" id="addApiKeyButton">新增随机 apikey</button>
         </div>
@@ -1159,9 +1228,9 @@
         <section class="panel">
           <h3 class="panel-title" id="apiKeyStatusTitle">入口 apikey</h3>
           <div class="info-box">
-            <div>入口 apikey 用于保护 Airouter 本地代理入口，不是 OpenAI、Codex 或 Claude 上游 API Key，也不会被转发给上游。</div>
-            <div>配置后，客户端请求 <code>/v1/*</code> 时必须带上任意一个已配置的 key：可以使用 <code>Authorization: Bearer &lt;apikey&gt;</code>，也可以使用 <code>x-api-key: &lt;apikey&gt;</code>。</div>
-            <div>配置多个 key 时，任意一个匹配即可访问，适合给不同客户端、设备或临时授权分别使用；删除某个 key 只会影响使用它的客户端。列表为空则不校验。</div>
+            <div>入口 apikey 保护 Airouter 本地代理入口，不是 OpenAI、Codex 或 Claude 的上游 API Key，也不会转发给上游。</div>
+            <div>客户端请求 <code>/v1/*</code> 时，带上任意一个已配置的 key 即可；可以用 <code>Authorization: Bearer &lt;apikey&gt;</code>，也可以用 <code>x-api-key: &lt;apikey&gt;</code>。</div>
+            <div>配置多个 key 时，任意一个匹配都能访问，适合不同设备或临时授权共用；删除某个 key 只会影响使用它的客户端。列表为空则不校验。</div>
           </div>
           <div id="apiKeysList" class="key-list"></div>
         </section>
@@ -1181,12 +1250,12 @@
             <div class="field">
               <label class="field-label" for="servicePortInput">服务端口</label>
               <input id="servicePortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="3009">
-              <p class="field-hint">Airouter 在你本机监听的对外服务端口。Codex、OpenAI SDK 或其他客户端会连到这个端口，例如填写 `http://localhost:3009/v1` 作为 Base URL。</p>
+              <p class="field-hint">Airouter 在你本机监听的对外服务端口。Codex、OpenAI SDK 或其他客户端会连到这个端口，例如把 `http://localhost:3009/v1` 填到 Base URL。</p>
             </div>
             <div class="field">
               <label class="field-label" for="proxyPortInput">代理端口</label>
               <input id="proxyPortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="留空不用代理">
-              <p class="field-hint">这里填写你本地 VPN/代理软件正在监听的端口，例如 Clash、Surge、V2RayN 常见的 7890。填写后 Airouter 访问上游时会通过该代理出网；留空则直连。</p>
+              <p class="field-hint">这里填写你本地 VPN/代理软件正在监听的端口，例如 Clash、Surge、V2RayN 常见的 7890。填了以后，Airouter 访问上游时会通过这个代理出网；留空则直连。</p>
             </div>
             <div class="field full">
               <div class="endpoint-card">
@@ -1204,14 +1273,42 @@
     </main>
   </div>
 
+  <div id="aliasModalBackdrop" class="alias-modal-backdrop" hidden>
+    <div class="alias-modal" role="dialog" aria-modal="true" aria-labelledby="aliasModalTitle">
+      <div class="alias-modal-head">
+        <div>
+          <h3 class="alias-modal-title" id="aliasModalTitle">编辑账号别名</h3>
+          <p class="alias-modal-note" id="aliasModalNote">给当前账号起一个更好认的名字。</p>
+        </div>
+        <button class="icon-button" type="button" id="aliasModalCloseButton" aria-label="关闭别名编辑">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div class="alias-modal-body">
+        <div class="field">
+          <label class="field-label" for="aliasInput">别名</label>
+          <input id="aliasInput" class="text-input" type="text" placeholder="例如：主账号 / 备用账号">
+        </div>
+        <div class="field">
+          <label class="field-label" id="aliasSourceLabel" for="aliasSourceValue">邮箱账号</label>
+          <div id="aliasSourceValue" class="field-readonly"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" id="aliasIdLabel" for="aliasIdValue">账号 ID</label>
+          <div id="aliasIdValue" class="field-readonly"></div>
+        </div>
+      </div>
+      <div class="alias-modal-actions">
+        <button class="command" type="button" id="aliasModalCancelButton">取消</button>
+        <button class="command primary" type="button" id="aliasModalSaveButton">保存别名</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/config-admin.js"></script>
   <script>
     const messageEl = document.getElementById('message');
     const accountsGrid = document.getElementById('accountsGrid');
-    const searchInput = document.getElementById('searchInput');
-    const filterSelect = document.getElementById('filterSelect');
-    const sortSelect = document.getElementById('sortSelect');
-    const refreshButton = document.getElementById('refreshButton');
     const configModeButtons = [...document.querySelectorAll('[data-config-mode]')];
     const addConfigModeTitle = document.getElementById('addConfigModeTitle');
     const tokenConfigPanel = document.getElementById('tokenConfigPanel');
@@ -1231,6 +1328,16 @@
     const proxyEndpointMeta = document.getElementById('proxyEndpointMeta');
     const saveProxySettingsButton = document.getElementById('saveProxySettingsButton');
     const legacyLink = document.getElementById('legacyLink');
+    const aliasModalBackdrop = document.getElementById('aliasModalBackdrop');
+    const aliasModalNote = document.getElementById('aliasModalNote');
+    const aliasInput = document.getElementById('aliasInput');
+    const aliasSourceLabel = document.getElementById('aliasSourceLabel');
+    const aliasSourceValue = document.getElementById('aliasSourceValue');
+    const aliasIdLabel = document.getElementById('aliasIdLabel');
+    const aliasIdValue = document.getElementById('aliasIdValue');
+    const aliasModalCloseButton = document.getElementById('aliasModalCloseButton');
+    const aliasModalCancelButton = document.getElementById('aliasModalCancelButton');
+    const aliasModalSaveButton = document.getElementById('aliasModalSaveButton');
     const adminAuthToken = new URLSearchParams(window.location.search).get('auth_token') || '';
     const {
       buildConfigSnapshotRequest,
@@ -1238,7 +1345,6 @@
       buildRequestUrl,
       parseResponsesApiResponse,
       extractErrorMessage,
-      getConfigIdentityValue,
       buildConfigItemFromForm,
       getConfigGuideContent,
       normalizePortValue,
@@ -1247,6 +1353,9 @@
 
     let snapshot = null;
     let messageTimer = null;
+    let editingAliasIndex = null;
+    let snapshotPollTimer = null;
+    const SNAPSHOT_POLL_INTERVAL_MS = 60 * 1000;
 
     function escapeHtml(value) {
       return String(value ?? '')
@@ -1320,18 +1429,46 @@
       return Boolean(configItem && configItem.type === 'apikey');
     }
 
-    function getAccountText(item) {
-      const configItem = item.item || {};
-      return [
-        configItem.description,
-        configItem.account_id,
-        getConfigIdentityValue(snapshot || {}, item),
-      ].filter(Boolean).join(' ');
+    function maskSecret(value) {
+      const text = String(value || '').trim();
+      if (!text) {
+        return '-';
+      }
+
+      if (text.length <= 8) {
+        return '***';
+      }
+
+      return `${text.slice(0, 3)}-...${text.slice(-4)}`;
     }
 
     function getDisplayName(item) {
       const configItem = item.item || {};
-      return configItem.description || configItem.account_id || `配置 #${item.index + 1}`;
+      return configItem.alias || configItem.description || configItem.account_id || `配置 #${item.index + 1}`;
+    }
+
+    function getAliasModalDetails(item) {
+      const configItem = item.item || {};
+
+      if (isApiKeyConfig(item)) {
+        return {
+          note: '别名只会影响这个页面里的展示，不会修改上游地址或 API Key。',
+          sourceLabel: '上游地址',
+          sourceValue: configItem.base_url || '未设置',
+          idLabel: 'API Key',
+          idValue: maskSecret(configItem.apikey),
+          aliasValue: configItem.alias || configItem.description || '',
+        };
+      }
+
+      return {
+        note: '别名只会影响这个页面里的展示，邮箱账号和账号 ID 会继续保留。',
+        sourceLabel: '邮箱账号',
+        sourceValue: configItem.description || '未设置',
+        idLabel: '账号 ID',
+        idValue: configItem.account_id || '未设置',
+        aliasValue: configItem.alias || '',
+      };
     }
 
     function getPlanLabel(item) {
@@ -1504,6 +1641,7 @@
         responses_usage_limit_reached: 'Responses 窗口额度已用尽',
         responses_usage_not_included: 'Responses 套餐不支持',
         quota_check_failed: '额度检查失败',
+        apikey_check_failed: 'API Key 检查失败',
       };
 
       if (typeof reason === 'string' && reason.startsWith('remaining_below_')) {
@@ -1519,6 +1657,10 @@
 
     function getHealthText(item) {
       if (isApiKeyConfig(item)) {
+        if (item.runtime?.available === false) {
+          return formatReasonText(item.runtime?.reason);
+        }
+
         return '不检查额度';
       }
 
@@ -1565,7 +1707,7 @@
       ].filter(Boolean).join(' ');
       const planClass = planLabel === 'TEAM' ? 'team' : 'plan';
       const quotaContent = isApiKeyConfig(item)
-        ? '<div class="api-key-note">API Key 上游不做 Codex 额度检查。请求会按支持能力转发到配置的 Base URL。</div>'
+        ? '<div class="api-key-note compact">API Key 上游不做 Codex 额度检查；点击刷新会测试上游是否可用。</div>'
         : `
           <div class="quota-block">
             ${renderQuota('5小时配额', '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>', primaryPercent, formatResetText(item.runtime, 'primary'))}
@@ -1580,9 +1722,13 @@
       return `
         <article class="${cardClass}" data-account-card data-index="${item.index}">
           <div class="account-head">
-            <div class="account-name" title="${escapeHtml(getDisplayName(item))}">${escapeHtml(getDisplayName(item))}</div>
-            <div class="pill-row">
-              <span class="pill ${planClass}">${escapeHtml(planLabel)}</span>
+            <div class="account-topline">
+              <div class="account-title-group">
+                <div class="account-name" title="${escapeHtml(getDisplayName(item))}">${escapeHtml(getDisplayName(item))}</div>
+              </div>
+              <div class="pill-row">
+                <span class="pill ${planClass}">${escapeHtml(planLabel)}</span>
+              </div>
             </div>
           </div>
 
@@ -1603,8 +1749,11 @@
               <button class="card-action" type="button" data-action="activate" data-index="${item.index}" ${item.is_active ? 'disabled' : ''} title="${item.is_active ? '当前使用' : '切换'}" aria-label="${item.is_active ? '当前使用' : '切换'}">
                 <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
               </button>
-              <button class="card-action" type="button" data-action="refresh" data-index="${item.index}" ${isApiKeyConfig(item) ? 'disabled' : ''} title="${isApiKeyConfig(item) ? 'API Key 上游不需要刷新额度' : '只刷新此账号额度'}" aria-label="${isApiKeyConfig(item) ? 'API Key 上游不需要刷新额度' : '只刷新此账号额度'}">
+              <button class="card-action" type="button" data-action="refresh" data-index="${item.index}" title="${isApiKeyConfig(item) ? '测试此 API Key 上游是否可用' : '只刷新此账号额度'}" aria-label="${isApiKeyConfig(item) ? '测试此 API Key 上游是否可用' : '只刷新此账号额度'}">
                 <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+              </button>
+              <button class="card-action" type="button" data-action="edit" data-index="${item.index}" title="编辑别名" aria-label="编辑别名">
+                <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
               </button>
               <button class="card-action danger" type="button" data-action="delete" data-index="${item.index}" title="删除" aria-label="删除">
                 <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6M14 11v6"/></svg>
@@ -1620,55 +1769,10 @@
     }
 
     function getVisibleAccounts() {
-      const query = searchInput.value.trim().toLowerCase();
-      const filter = filterSelect.value;
-      const sort = sortSelect.value;
-
-      const accounts = getManagedConfigs().filter(item => {
-        if (query && !getAccountText(item).toLowerCase().includes(query)) {
-          return false;
-        }
-        if (filter === 'current') {
-          return item.is_active;
-        }
-        if (filter === 'available') {
-          return item.runtime?.available !== false;
-        }
-        if (filter === 'unavailable') {
-          return item.runtime?.available === false;
-        }
-        return true;
-      });
-
-      accounts.sort((left, right) => {
-        if (sort === 'quota') {
-          return (getPrimaryPercent(right.runtime) ?? -1) - (getPrimaryPercent(left.runtime) ?? -1);
-        }
-        if (sort === 'checked') {
-          return (right.runtime?.last_checked_at || 0) - (left.runtime?.last_checked_at || 0);
-        }
-        return left.index - right.index;
-      });
-
-      return accounts;
-    }
-
-    function updateFilterLabel() {
-      const count = getManagedConfigs().length;
-      const labels = {
-        all: `全部 (${count})`,
-        current: '当前',
-        available: '可用',
-        unavailable: '不可用',
-      };
-
-      for (const option of filterSelect.options) {
-        option.textContent = labels[option.value] || option.textContent;
-      }
+      return [...getManagedConfigs()].sort((left, right) => left.index - right.index);
     }
 
     function renderAccounts() {
-      updateFilterLabel();
       accountsGrid.className = 'accounts-grid';
       const accounts = getVisibleAccounts();
 
@@ -1724,6 +1828,59 @@
       legacyLink.href = withAuthToken('/admin/configs');
     }
 
+    function closeAliasModal() {
+      aliasModalBackdrop.classList.remove('show');
+      aliasModalBackdrop.hidden = true;
+      editingAliasIndex = null;
+      aliasInput.value = '';
+    }
+
+    function openAliasModal(index) {
+      const item = findSnapshotConfig(index);
+      if (!item) {
+        setMessage('error', '未找到要编辑的账号。');
+        return;
+      }
+
+      const details = getAliasModalDetails(item);
+      editingAliasIndex = item.index;
+      aliasModalNote.textContent = details.note;
+      aliasSourceLabel.textContent = details.sourceLabel;
+      aliasSourceValue.textContent = details.sourceValue;
+      aliasIdLabel.textContent = details.idLabel;
+      aliasIdValue.textContent = details.idValue;
+      aliasInput.value = details.aliasValue;
+      aliasModalBackdrop.hidden = false;
+      aliasModalBackdrop.classList.add('show');
+      window.setTimeout(() => {
+        aliasInput.focus();
+        aliasInput.select();
+      }, 0);
+    }
+
+    async function saveAlias() {
+      if (!Number.isInteger(editingAliasIndex)) {
+        return;
+      }
+
+      aliasModalSaveButton.disabled = true;
+      try {
+        snapshot = await requestJson(`/admin/api/configs/${editingAliasIndex}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            alias: aliasInput.value.trim(),
+          }),
+        });
+        renderAll();
+        closeAliasModal();
+        setMessage('info', '别名已保存。');
+      } catch (error) {
+        setMessage('error', error.message);
+      } finally {
+        aliasModalSaveButton.disabled = false;
+      }
+    }
+
     function getSelectedConfigMode() {
       const selected = configModeButtons.find(button => button.classList.contains('active'));
       return selected ? selected.dataset.configMode : 'token';
@@ -1757,12 +1914,23 @@
     }
 
     async function loadSnapshot(message = '', options = {}) {
+      const silent = Boolean(options.silent);
+      const background = Boolean(options.background);
+
       try {
         const request = buildConfigSnapshotRequest(Boolean(options.forceRefresh));
         snapshot = await requestJson(request.url, request.options);
         renderAll();
-        setMessage(message ? 'info' : '', message);
+        if (message) {
+          setMessage('info', message);
+        } else if (!silent) {
+          setMessage('', '');
+        }
       } catch (error) {
+        if (background && error.status !== 401) {
+          return;
+        }
+
         if (error.status === 401) {
           setMessage('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。');
           accountsGrid.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
@@ -1772,6 +1940,23 @@
         setMessage('error', error.message);
         accountsGrid.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
       }
+    }
+
+    function startSnapshotPolling() {
+      if (snapshotPollTimer) {
+        window.clearInterval(snapshotPollTimer);
+      }
+
+      snapshotPollTimer = window.setInterval(() => {
+        if (!aliasModalBackdrop.hidden) {
+          return;
+        }
+
+        loadSnapshot('', {
+          silent: true,
+          background: true,
+        });
+      }, SNAPSHOT_POLL_INTERVAL_MS);
     }
 
     function buildConfigItemFromInput() {
@@ -1922,15 +2107,6 @@
       return new Promise(resolve => window.setTimeout(resolve, ms));
     }
 
-    function summarizeRefreshResult(items) {
-      const configs = Array.isArray(items) ? items : getManagedConfigs();
-      const checkedConfigs = configs.filter(item => !isApiKeyConfig(item));
-      const unavailableCount = checkedConfigs.filter(item => item.runtime?.available === false).length;
-      const availableCount = checkedConfigs.length - unavailableCount;
-
-      return `刷新完成：${availableCount} 个可用，${unavailableCount} 个不可用。`;
-    }
-
     async function refreshSingleConfigWithRetry(index, options = {}) {
       const { maxAttempts = 3 } = options;
       let attempt = 0;
@@ -1959,32 +2135,6 @@
       };
     }
 
-    async function refreshAllConfigsWithRetry(options = {}) {
-      const { maxAttempts = 3 } = options;
-      let attempt = 0;
-      let retryableItems = [];
-
-      while (attempt < maxAttempts) {
-        attempt += 1;
-        const request = buildConfigSnapshotRequest(true);
-        snapshot = await requestJson(request.url, request.options);
-        renderAll();
-        retryableItems = getManagedConfigs().filter(item => !isApiKeyConfig(item) && isRetryableNetworkProblem(item));
-
-        if (!retryableItems.length || attempt >= maxAttempts) {
-          break;
-        }
-
-        setMessage('info', `发现网络异常，正在第 ${attempt + 1} 次重试刷新全部账号...`);
-        await delay(500);
-      }
-
-      return {
-        attempts: attempt,
-        retryableItems,
-      };
-    }
-
     function setButtonLoading(button, loading) {
       if (!button) {
         return;
@@ -2009,26 +2159,8 @@
       }
     }
 
-    function armDeleteButton(button, message) {
-      if (button.dataset.confirm === 'true') {
-        window.clearTimeout(Number(button.dataset.confirmTimer || 0));
-        delete button.dataset.confirm;
-        delete button.dataset.confirmTimer;
-        button.classList.remove('confirming');
-        return true;
-      }
-
-      button.dataset.confirm = 'true';
-      button.classList.add('confirming');
-      setMessage('info', message);
-
-      const timer = window.setTimeout(() => {
-        delete button.dataset.confirm;
-        delete button.dataset.confirmTimer;
-        button.classList.remove('confirming');
-      }, 5000);
-      button.dataset.confirmTimer = String(timer);
-      return false;
+    function confirmDeleteAction(message) {
+      return window.confirm(`${message} 点击“确定”就可以。`);
     }
 
     document.querySelectorAll('[data-section-target]').forEach(button => {
@@ -2045,23 +2177,6 @@
 
     configModeButtons.forEach(button => {
       button.addEventListener('click', () => updateConfigMode(button.dataset.configMode));
-    });
-
-    searchInput.addEventListener('input', renderAccounts);
-    filterSelect.addEventListener('change', renderAccounts);
-    sortSelect.addEventListener('change', renderAccounts);
-
-    refreshButton.addEventListener('click', async () => {
-      setButtonLoading(refreshButton, true);
-      try {
-        const result = await refreshAllConfigsWithRetry();
-        const retryText = result.attempts > 1 ? ` 已重试 ${result.attempts - 1} 次。` : '';
-        setMessage('info', `${summarizeRefreshResult()}${retryText}`);
-      } catch (error) {
-        setMessage('error', error.message);
-      } finally {
-        setButtonLoading(refreshButton, false);
-      }
     });
 
     addConfigButton.addEventListener('click', async () => {
@@ -2102,6 +2217,22 @@
       }
     });
 
+    aliasModalBackdrop.addEventListener('click', event => {
+      if (event.target === aliasModalBackdrop) {
+        closeAliasModal();
+      }
+    });
+
+    aliasModalCloseButton.addEventListener('click', closeAliasModal);
+    aliasModalCancelButton.addEventListener('click', closeAliasModal);
+    aliasModalSaveButton.addEventListener('click', saveAlias);
+
+    window.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !aliasModalBackdrop.hidden) {
+        closeAliasModal();
+      }
+    });
+
     accountsGrid.addEventListener('click', async event => {
       const button = event.target.closest('[data-action]');
       if (!button) {
@@ -2113,6 +2244,10 @@
       try {
         if (action === 'activate') {
           await activateConfig(button.dataset.index);
+          return;
+        }
+        if (action === 'edit') {
+          openAliasModal(button.dataset.index);
           return;
         }
         if (action === 'refresh') {
@@ -2129,11 +2264,9 @@
           return;
         }
         if (action === 'delete') {
-          button.disabled = false;
-          if (!armDeleteButton(button, '再次点击确认删除这个配置项。')) {
+          if (!confirmDeleteAction('确认删除这个配置项吗？')) {
             return;
           }
-          button.disabled = true;
           await deleteConfig(button.dataset.index);
         }
       } catch (error) {
@@ -2149,7 +2282,7 @@
         return;
       }
 
-      if (!armDeleteButton(button, '再次点击确认删除这个 apikey。')) {
+      if (!confirmDeleteAction('确认删除这个 apikey 吗？')) {
         return;
       }
 
@@ -2166,6 +2299,7 @@
     updateConfigMode('token');
     legacyLink.href = withAuthToken('/admin/configs');
     loadSnapshot();
+    startSnapshotPolling();
   </script>
 </body>
 </html>
