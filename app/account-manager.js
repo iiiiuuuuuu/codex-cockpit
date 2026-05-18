@@ -15,6 +15,8 @@ function createAccountManager(options) {
     buildAuthHeadersForConfig,
     requestBufferedFn = requestBuffered,
     shouldUseQuotaMonitoring,
+    refreshTokenFn = null,
+    persistTokenRefreshFn = async () => {},
     log,
     warn,
     now,
@@ -438,6 +440,65 @@ function createAccountManager(options) {
       });
   }
 
+  function normalizeString(value) {
+    return typeof value === 'string' ? value.trim() : String(value ?? '').trim();
+  }
+
+  function isMissingCredentialsPayload(payload) {
+    return evaluateQuotaPayload(payload).reason === 'missing_credentials';
+  }
+
+  async function requestQuotaPayload(config, targetUrl) {
+    const result = await withQuotaCheckTimeout(requestBufferedFn({
+      method: 'GET',
+      targetUrl,
+      headers: buildAuthHeadersForConfig(config),
+      timeoutMs: quotaCheckTimeoutMs,
+      maxRedirects: 5,
+    }));
+
+    return {
+      result,
+      payload: JSON.parse(result.bodyText),
+    };
+  }
+
+  async function refreshConfigAccessToken(config) {
+    const refreshToken = normalizeString(config.refresh_token);
+
+    if (!refreshToken || typeof refreshTokenFn !== 'function') {
+      return false;
+    }
+
+    const refreshed = await refreshTokenFn({
+      config,
+      refreshToken,
+      clientId: normalizeString(config.client_id),
+    });
+    const accessToken = normalizeString(refreshed && (refreshed.access_token || refreshed.accessToken));
+    const nextRefreshToken = normalizeString(refreshed && (refreshed.refresh_token || refreshed.refreshToken)) || refreshToken;
+    const clientId = normalizeString(refreshed && (refreshed.client_id || refreshed.clientId)) || normalizeString(config.client_id);
+
+    if (!accessToken) {
+      throw new Error('token refresh response missing access_token');
+    }
+
+    config.access_token = accessToken;
+    config.refresh_token = nextRefreshToken;
+    if (clientId) {
+      config.client_id = clientId;
+    }
+
+    await persistTokenRefreshFn({
+      config,
+      accessToken,
+      refreshToken: nextRefreshToken,
+      ...(clientId ? { clientId } : {}),
+    });
+
+    return true;
+  }
+
   /**
    * 保证活动账号可用，仅当当前账号不可用时才切换。
    */
@@ -487,17 +548,18 @@ function createAccountManager(options) {
     const targetUrl = new URL(quotaCheckPath, config.baseUrl).toString();
 
     try {
-      const result = await withQuotaCheckTimeout(requestBufferedFn({
-        method: 'GET',
-        targetUrl,
-        headers: buildAuthHeadersForConfig(config),
-        timeoutMs: quotaCheckTimeoutMs,
-        maxRedirects: 5,
-      }));
-      const payload = JSON.parse(result.bodyText);
+      let { result, payload } = await requestQuotaPayload(config, targetUrl);
       if (result.statusCode < 200 || result.statusCode >= 300) {
-        const detail = payload && typeof payload.detail === 'string' ? payload.detail.trim().toLowerCase() : '';
-        if (detail === 'unauthorized') {
+        if (isMissingCredentialsPayload(payload)) {
+          const refreshed = await refreshConfigAccessToken(config);
+          if (refreshed) {
+            ({ result, payload } = await requestQuotaPayload(config, targetUrl));
+            if (result.statusCode >= 200 && result.statusCode < 300) {
+              applyQuotaPayload(config, payload, { allowSwitch });
+              return config.runtime;
+            }
+          }
+
           applyQuotaPayload(config, payload, { allowSwitch });
           return config.runtime;
         }

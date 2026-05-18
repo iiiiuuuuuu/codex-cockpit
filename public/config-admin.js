@@ -272,6 +272,7 @@
               id: 'account-id',
             },
             accessToken: '...',
+            refresh_token: '...',
           }, null, 2),
           actionText: '打开 AuthSession 页面',
           actionHref: 'https://chatgpt.com/api/auth/session',
@@ -289,6 +290,7 @@
           id: 'account-id',
         },
         accessToken: '...',
+        refresh_token: '...',
       }, null, 2),
     };
   }
@@ -320,6 +322,12 @@
     const value = configItem && configItem.account_id;
 
     return typeof value === 'string' && value.trim() ? value.trim() : '-';
+  }
+
+  function hasRefreshTokenConfig(item) {
+    const configItem = item && item.item ? item.item : item;
+
+    return Boolean(configItem && configItem.type !== 'apikey' && typeof configItem.refresh_token === 'string' && configItem.refresh_token.trim());
   }
 
   function getRuntimeSummaryText(runtime) {
@@ -610,6 +618,7 @@
     buildAdminStatusSummary,
     extractRuntimeStatusTags,
     getActiveConfigLabel,
+    hasRefreshTokenConfig,
     buildHelloTestRequest,
     formatResponsesModelAliasesInput,
     parseResponsesModelAliasesInput,

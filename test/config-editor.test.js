@@ -48,6 +48,14 @@ function createApiKeyConfig(overrides = {}) {
   };
 }
 
+function createFakeJwt(payload) {
+  return [
+    Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url'),
+    Buffer.from(JSON.stringify(payload)).toString('base64url'),
+    'signature',
+  ].join('.');
+}
+
 test('addConfigItem appends a token config and preserves top-level settings', () => {
   const parsed = createTokenConfig();
 
@@ -87,11 +95,70 @@ test('buildImportedConfigItem extracts token fields from auth session JSON', () 
   });
 });
 
+test('buildImportedConfigItem preserves refresh_token from auth session JSON', () => {
+  const imported = buildImportedConfigItem('token', {
+    user: {
+      email: 'user@example.com',
+    },
+    account: {
+      id: 'account-from-session',
+    },
+    accessToken: 'access-token-from-session',
+    refresh_token: 'refresh-token-from-session',
+  });
+
+  assert.deepEqual(imported, {
+    description: 'user@example.com',
+    account_id: 'account-from-session',
+    access_token: 'access-token-from-session',
+    refresh_token: 'refresh-token-from-session',
+  });
+});
+
+test('buildImportedConfigItem supports direct credential JSON with email and JWT client_id', () => {
+  const imported = buildImportedConfigItem('token', {
+    access_token: createFakeJwt({
+      client_id: 'app-from-access-token',
+    }),
+    account_id: 'account-from-direct-json',
+    email: 'user@example.com',
+    refresh_token: 'refresh-token-from-direct-json',
+  });
+
+  assert.equal(imported.description, 'user@example.com');
+  assert.equal(imported.account_id, 'account-from-direct-json');
+  assert.equal(imported.refresh_token, 'refresh-token-from-direct-json');
+  assert.equal(imported.client_id, 'app-from-access-token');
+});
+
+test('buildImportedConfigItem accepts camelCase and nested token refresh fields', () => {
+  const camelCaseImported = buildImportedConfigItem('token', {
+    account: {
+      id: 'account-from-session',
+    },
+    accessToken: 'access-token-from-session',
+    refreshToken: 'refresh-token-camel',
+  });
+  const nestedImported = buildImportedConfigItem('token', {
+    account: {
+      id: 'account-from-session',
+    },
+    accessToken: 'access-token-from-session',
+    tokens: {
+      refresh_token: 'refresh-token-nested',
+    },
+  });
+
+  assert.equal(camelCaseImported.refresh_token, 'refresh-token-camel');
+  assert.equal(nestedImported.refresh_token, 'refresh-token-nested');
+});
+
 test('buildImportedConfigItem keeps explicit token config fields when provided', () => {
   const imported = buildImportedConfigItem('token', {
     description: 'manual description',
     account_id: 'manual-account',
     access_token: 'manual-token',
+    refresh_token: 'manual-refresh-token',
     accessToken: 'ignored-session-token',
   });
 
@@ -99,6 +166,7 @@ test('buildImportedConfigItem keeps explicit token config fields when provided',
     description: 'manual description',
     account_id: 'manual-account',
     access_token: 'manual-token',
+    refresh_token: 'manual-refresh-token',
   });
 });
 

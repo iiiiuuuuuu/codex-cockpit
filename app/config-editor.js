@@ -26,6 +26,25 @@ function normalizeString(value) {
     return String(value);
 }
 
+function decodeJwtPayload(token) {
+    const text = normalizeString(token);
+    const parts = text.split('.');
+
+    if (parts.length !== 3) {
+        return null;
+    }
+
+    try {
+        const normalizedPayload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, '=');
+        const payload = JSON.parse(Buffer.from(paddedPayload, 'base64').toString('utf8'));
+
+        return payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : null;
+    } catch (err) {
+        return null;
+    }
+}
+
 function normalizeStringArray(values) {
     if (!Array.isArray(values)) {
         throw new ConfigEditorError('配置设置 apikeys 必须是数组');
@@ -85,7 +104,7 @@ function getEditableFields(type) {
     }
 
     if (type === 'token') {
-        return ['type', 'access_token', 'account_id', 'description'];
+        return ['type', 'access_token', 'refresh_token', 'account_id', 'description'];
     }
 
     throw new ConfigEditorError(`不支持的配置类型: ${type}`);
@@ -143,6 +162,10 @@ function normalizeConfigItem(item, existingItem = {}) {
         delete nextItem.type;
     }
 
+    if (type === 'token' && !nextItem.refresh_token) {
+        delete nextItem.refresh_token;
+    }
+
     if (type === 'apikey') {
         nextItem.type = 'apikey';
         nextItem.base_url = nextItem.base_url.replace(/\/+$/, '');
@@ -172,23 +195,45 @@ function buildImportedConfigItem(typeOrItem, maybeItem) {
     const explicitAccessToken = normalizeString(item.access_token);
     const explicitAccountId = normalizeString(item.account_id);
     const explicitDescription = normalizeString(item.description);
+    const explicitRefreshToken = normalizeString(item.refresh_token);
+    const explicitClientId = normalizeString(item.client_id);
     const sessionAccessToken = normalizeString(item.accessToken);
     const sessionAccountId = normalizeString(item.account && item.account.id);
-    const sessionDescription = normalizeString(item.user && item.user.email);
+    const sessionDescription = normalizeString(item.user && item.user.email) || normalizeString(item.email);
+    const sessionRefreshToken = normalizeString(item.refreshToken) ||
+        normalizeString(item.tokens && item.tokens.refresh_token) ||
+        normalizeString(item.tokens && item.tokens.refreshToken);
+    const sessionClientId = normalizeString(item.clientId) ||
+        normalizeString(item.tokens && item.tokens.client_id) ||
+        normalizeString(item.tokens && item.tokens.clientId);
 
     const accessToken = explicitAccessToken || sessionAccessToken;
     const accountId = explicitAccountId || sessionAccountId;
     const description = explicitDescription || sessionDescription || accountId;
+    const refreshToken = explicitRefreshToken || sessionRefreshToken;
+    const decodedAccessToken = decodeJwtPayload(accessToken);
+    const decodedIdToken = decodeJwtPayload(item.id_token);
+    const clientId = explicitClientId || sessionClientId || normalizeString(decodedAccessToken && decodedAccessToken.client_id) || normalizeString(decodedIdToken && decodedIdToken.client_id);
 
     if (!accessToken || !accountId) {
         throw new ConfigEditorError('token 模式下请提供 access_token/account_id，或直接粘贴包含 user.email、account.id、accessToken 的 AuthSession JSON');
     }
 
-    return {
+    const imported = {
         access_token: accessToken,
         account_id: accountId,
         description,
     };
+
+    if (refreshToken) {
+        imported.refresh_token = refreshToken;
+    }
+
+    if (clientId) {
+        imported.client_id = clientId;
+    }
+
+    return imported;
 }
 
 function getConfigIndex(index, parsed) {

@@ -241,6 +241,8 @@ function createTokenRuntimeConfig(config, index) {
         baseUrl: CHATGPT_BASE_URL,
         apiBasePath: CODEX_API_BASE_PATH,
         access_token: config.access_token || '',
+        refresh_token: config.refresh_token || '',
+        client_id: config.client_id || '',
         account_id: config.account_id || '',
         description: config.description || `OpenAI 配置 #${index + 1}`,
         runtime: createDefaultTokenRuntime(enabled)

@@ -13,6 +13,7 @@ const { applyForcedProxyHeaders } = require('./app/proxy-header-overrides');
 const { normalizeResponsesRequestBody, isResponsesPath } = require('./app/responses-defaults');
 const { createClaudeMessagesHandler } = require('./app/claude-messages-handler');
 const { createAccountManager } = require('./app/account-manager');
+const { refreshOpenAIToken } = require('./app/openai-token-refresh');
 const {
     applyResponsesFailoverRequestHeaders,
     classifyRetryableResponsesHttpError,
@@ -27,7 +28,8 @@ const {
     createRuntimeConfigs,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring,
-    configSupportsCapability
+    configSupportsCapability,
+    getConfigItemType
 } = require('./app/openai-config');
 const {
     ConfigEditorError,
@@ -676,6 +678,12 @@ function applyLoadedConfig(loadedConfig) {
         minWeeklyRemainingPercent: MIN_WEEKLY_REMAINING_PERCENT,
         buildAuthHeadersForConfig,
         shouldUseQuotaMonitoring,
+        refreshTokenFn: ({ refreshToken, clientId }) => refreshOpenAIToken({
+            refreshToken,
+            clientId,
+            timeoutMs: QUOTA_CHECK_TIMEOUT_MS
+        }),
+        persistTokenRefreshFn: persistTokenRefreshForConfig,
         log,
         warn,
         now: getCurrentTimestamp
@@ -720,6 +728,48 @@ function persistConfigWithoutRuntimeReload(nextParsed) {
     const savedParsed = writeParsedConfigFile(CONFIG_FILE, nextParsed);
     currentParsedConfig = savedParsed;
     return savedParsed;
+}
+
+function persistTokenRefreshForConfig(update) {
+    const config = update && update.config;
+    const accessToken = typeof update?.accessToken === 'string' ? update.accessToken.trim() : '';
+    const refreshToken = typeof update?.refreshToken === 'string' ? update.refreshToken.trim() : '';
+    const clientId = typeof update?.clientId === 'string' ? update.clientId.trim() : '';
+
+    if (!config || !Number.isInteger(config.index)) {
+        throw new ConfigEditorError('刷新 token 的配置项索引不合法');
+    }
+
+    if (!accessToken) {
+        throw new ConfigEditorError('刷新 token 响应缺少 access_token');
+    }
+
+    const parsed = readParsedConfigFile(CONFIG_FILE);
+    const targetItem = parsed.configs[config.index];
+
+    if (!targetItem || getConfigItemType(targetItem) !== 'token') {
+        throw new ConfigEditorError('刷新 token 的配置项不存在');
+    }
+
+    targetItem.access_token = accessToken;
+    if (refreshToken) {
+        targetItem.refresh_token = refreshToken;
+    }
+    if (clientId) {
+        targetItem.client_id = clientId;
+    }
+
+    const savedParsed = persistConfigWithoutRuntimeReload(parsed);
+    const savedItem = savedParsed.configs[config.index] || {};
+    const runtimeConfig = apiConfigs[config.index];
+
+    if (runtimeConfig) {
+        runtimeConfig.access_token = savedItem.access_token || accessToken;
+        runtimeConfig.refresh_token = savedItem.refresh_token || refreshToken || runtimeConfig.refresh_token || '';
+        runtimeConfig.client_id = savedItem.client_id || clientId || runtimeConfig.client_id || '';
+    }
+
+    return savedItem;
 }
 
 function listenOnPort(port) {
@@ -1535,6 +1585,32 @@ app.post('/admin/api/configs/refresh', async (req, res) => {
     } catch (err) {
         res.status(500).json({
             error: '刷新额度失败',
+            details: err.message
+        });
+    }
+});
+
+app.post('/admin/api/openai/refresh-token', async (req, res) => {
+    try {
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const refreshToken = typeof body.refresh_token === 'string' && body.refresh_token.trim()
+            ? body.refresh_token.trim()
+            : typeof body.rt === 'string' ? body.rt.trim() : '';
+        const clientId = typeof body.client_id === 'string' ? body.client_id.trim() : '';
+
+        if (!refreshToken) {
+            throw new ConfigEditorError('refresh_token is required');
+        }
+
+        res.json(await refreshOpenAIToken({
+            refreshToken,
+            clientId,
+            timeoutMs: QUOTA_CHECK_TIMEOUT_MS
+        }));
+    } catch (err) {
+        const statusCode = err instanceof ConfigEditorError ? 400 : 502;
+        res.status(statusCode).json({
+            error: statusCode === 400 ? '参数错误' : 'OpenAI token 刷新失败',
             details: err.message
         });
     }

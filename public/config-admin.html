@@ -696,7 +696,7 @@
             <p class="field-hint">
               建议使用浏览器隐私模式登录 ChatGPT 后打开
               <a href="https://chatgpt.com/api/auth/session" target="_blank" rel="noreferrer" data-open-external="true">AuthSession 页面</a>
-              复制完整 JSON；粘贴后不要退出该登录态，否则 token 会失效。系统会自动提取 accessToken、account id 和邮箱备注。
+              复制完整 JSON；粘贴后不要退出该登录态，否则 token 会失效。系统会自动提取 accessToken、refresh_token、account id 和邮箱备注。
             </p>
           </div>
         </div>
@@ -848,6 +848,7 @@
       getConfigIdentityValue,
       buildConfigItemFromForm,
       extractRuntimeStatusTags,
+      hasRefreshTokenConfig,
       normalizePortValue,
       buildProxyAccessInfo,
     } = window.AirouterConfigAdmin;
@@ -967,6 +968,10 @@
 
       if (item.is_active) {
         tags.push('<span class="badge active">当前使用</span>');
+      }
+
+      if (hasRefreshTokenConfig(item)) {
+        tags.push('<span class="badge ok">可刷新</span>');
       }
 
       return tags.join('');

@@ -131,6 +131,7 @@ test('createRuntimeConfigs defaults config items to token type', () => {
       {
         access_token: 'token',
         account_id: 'account',
+        refresh_token: 'refresh-token',
         description: 'primary token',
       },
     ],
@@ -142,6 +143,7 @@ test('createRuntimeConfigs defaults config items to token type', () => {
   assert.equal(runtimeConfigs[0].type, 'token');
   assert.equal(runtimeConfigs[0].description, 'primary token');
   assert.equal(runtimeConfigs[0].baseUrl, 'https://chatgpt.com');
+  assert.equal(runtimeConfigs[0].refresh_token, 'refresh-token');
 });
 
 test('createRuntimeConfigs supports item-level apikey configs', () => {

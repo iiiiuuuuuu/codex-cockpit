@@ -21,6 +21,7 @@ const {
   buildAdminStatusSummary,
   extractRuntimeStatusTags,
   getActiveConfigLabel,
+  hasRefreshTokenConfig,
   extractResponseSummary,
   normalizePortValue,
   buildProxyAccessInfo,
@@ -104,6 +105,7 @@ test('config admin keeps all console controls after UI refresh', () => {
   assert.match(html, /data-action="activate"/);
   assert.match(html, /data-action="delete"/);
   assert.match(html, /data-action="delete-apikey"/);
+  assert.match(html, /可刷新/);
   assert.match(html, /确认删除/);
   assert.doesNotMatch(html, /window\.confirm/);
   assert.ok(accessControlSection, 'access control section should be present');
@@ -252,6 +254,7 @@ test('getConfigGuideContent explains token JSON and apikey form entry separately
   });
 
   assert.match(guide.rawJsonPlaceholder, /"accessToken": "\.\.\."/);
+  assert.match(guide.rawJsonPlaceholder, /"refresh_token": "\.\.\."/);
   assert.doesNotMatch(guide.rawJsonPlaceholder, /"type": "apikey"/);
   assert.equal(guide.steps.some(step => /apikey 模式/.test(step.description)), true);
 
@@ -260,6 +263,7 @@ test('getConfigGuideContent explains token JSON and apikey form entry separately
   assert.match(tokenStep.description, /隐私模式/);
   assert.match(tokenStep.description, /不要退出该登录态/);
   assert.match(tokenStep.example, /"accessToken": "\.\.\."/);
+  assert.match(tokenStep.example, /"refresh_token": "\.\.\."/);
   assert.equal(tokenStep.actionText, '打开 AuthSession 页面');
   assert.equal(tokenStep.actionHref, 'https://chatgpt.com/api/auth/session');
 
@@ -269,6 +273,20 @@ test('getConfigGuideContent explains token JSON and apikey form entry separately
   assert.match(apiKeyStep.description, /GPT/);
   assert.equal(apiKeyStep.example, undefined);
   assert.equal(apiKeyStep.actionHref, undefined);
+});
+
+test('hasRefreshTokenConfig detects token configs that can be refreshed', () => {
+  assert.equal(hasRefreshTokenConfig({
+    item: {
+      refresh_token: 'refresh-token',
+    },
+  }), true);
+  assert.equal(hasRefreshTokenConfig({
+    item: {
+      type: 'apikey',
+      apikey: 'sk-1',
+    },
+  }), false);
 });
 
 test('buildConfigItemFromForm keeps token mode as pasted AuthSession JSON', () => {

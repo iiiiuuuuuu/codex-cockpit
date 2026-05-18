@@ -82,6 +82,8 @@ function createManager(configs, overrides = {}) {
     }),
     requestBufferedFn: overrides.requestBufferedFn,
     shouldUseQuotaMonitoring: type => type === 'token',
+    refreshTokenFn: overrides.refreshTokenFn,
+    persistTokenRefreshFn: overrides.persistTokenRefreshFn,
     log: (...args) => logs.push(args.join(' ')),
     warn: (...args) => warnings.push(args.join(' ')),
     now: () => 1713337200000,
@@ -670,6 +672,97 @@ test('refreshQuotas switches away from the active account when the quota check f
   assert.equal(warnings.some(line => /账号恢复可用: #2 account-2 \(remaining=75%\)/.test(line)), true);
   assert.equal(warnings.some(line => /账号切换: #1 account-1 -> #2 account-2 \(poll\)/.test(line)), true);
   assert.match(logs[0], /轮询额度: #2 account-2 \| 可用=是/);
+});
+
+test('refreshQuotas refreshes an expired token with refresh_token and retries quota check', async () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }, {
+      access_token: 'old-access-token',
+      refresh_token: 'old-refresh-token',
+    }),
+  ];
+  const requestCalls = [];
+  const persisted = [];
+  let quotaCallIndex = 0;
+  const { manager } = createManager(configs, {
+    requestBufferedFn: async requestOptions => {
+      requestCalls.push(requestOptions);
+      quotaCallIndex += 1;
+
+      if (quotaCallIndex === 1) {
+        return {
+          statusCode: 401,
+          bodyText: JSON.stringify({
+            detail: 'Unauthorized',
+          }),
+        };
+      }
+
+      return {
+        statusCode: 200,
+        bodyText: JSON.stringify({
+          rate_limit: {
+            allowed: true,
+            limit_reached: false,
+            primary_window: { used_percent: 25, reset_at: 1713350000 },
+            secondary_window: { used_percent: 40, reset_at: 1713360000 },
+          },
+        }),
+      };
+    },
+    refreshTokenFn: async payload => {
+      assert.equal(payload.refreshToken, 'old-refresh-token');
+      assert.equal(payload.config, configs[0]);
+      return {
+        access_token: 'new-access-token',
+        refresh_token: 'new-refresh-token',
+      };
+    },
+    persistTokenRefreshFn: async payload => {
+      persisted.push(payload);
+    },
+  });
+
+  await manager.refreshQuotas('poll');
+
+  assert.equal(requestCalls.length, 2);
+  assert.equal(requestCalls[0].headers.authorization, 'Bearer old-access-token');
+  assert.equal(requestCalls[1].headers.authorization, 'Bearer new-access-token');
+  assert.equal(configs[0].access_token, 'new-access-token');
+  assert.equal(configs[0].refresh_token, 'new-refresh-token');
+  assert.deepEqual(persisted, [{
+    config: configs[0],
+    accessToken: 'new-access-token',
+    refreshToken: 'new-refresh-token',
+  }]);
+  assert.equal(configs[0].runtime.available, true);
+  assert.equal(configs[0].runtime.reason, 'ok');
+  assert.equal(configs[0].runtime.remainingPercent, 75);
+});
+
+test('refreshQuotas keeps missing_credentials when refresh_token is unavailable', async () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+  ];
+  let refreshCalled = false;
+  const { manager } = createManager(configs, {
+    requestBufferedFn: async () => ({
+      statusCode: 401,
+      bodyText: JSON.stringify({
+        detail: 'Unauthorized',
+      }),
+    }),
+    refreshTokenFn: async () => {
+      refreshCalled = true;
+      return {};
+    },
+  });
+
+  await manager.refreshQuotas('poll');
+
+  assert.equal(refreshCalled, false);
+  assert.equal(configs[0].runtime.available, false);
+  assert.equal(configs[0].runtime.reason, 'missing_credentials');
 });
 
 test('refreshQuotas still checks all accounts during startup', async () => {
