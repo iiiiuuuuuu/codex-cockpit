@@ -7,6 +7,9 @@ const RESPONSES_DEFAULTS = {
     stream: true,
     include: []
 };
+const CODEX_SPEED_MODE_SERVICE_TIER = {
+    fast: 'priority'
+};
 
 function isResponsesPath(requestPath) {
     if (typeof requestPath !== 'string' || requestPath.length === 0) {
@@ -43,6 +46,11 @@ function normalizeResponsesRequestBody(requestPath, body, options = {}) {
         ...body
     };
     normalizedBody.model = normalizeModelAlias(body.model, options);
+    if (options.codexSpeedMode === 'standard') {
+        delete normalizedBody.service_tier;
+    } else if (options.codexSpeedMode && CODEX_SPEED_MODE_SERVICE_TIER[options.codexSpeedMode]) {
+        normalizedBody.service_tier = CODEX_SPEED_MODE_SERVICE_TIER[options.codexSpeedMode];
+    }
     if (options.forceStoreFalse) {
         normalizedBody.store = false;
     }
@@ -52,6 +60,7 @@ function normalizeResponsesRequestBody(requestPath, body, options = {}) {
 
 module.exports = {
     RESPONSES_DEFAULTS,
+    CODEX_SPEED_MODE_SERVICE_TIER,
     normalizeModelAlias,
     isResponsesPath,
     normalizeResponsesRequestBody

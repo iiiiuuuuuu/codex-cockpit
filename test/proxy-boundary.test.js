@@ -134,6 +134,28 @@ test('normalizeProxyJsonBody adapts store true for token-backed Codex responses 
   assert.equal(normalized.store, false);
 });
 
+test('normalizeProxyJsonBody applies Codex speed service tier only to token-backed responses requests', () => {
+  const tokenBody = normalizeProxyJsonBody({
+    type: 'token',
+  }, '/backend-api/codex/responses', {
+    model: 'gpt-5.5',
+    input: 'hello',
+  }, {
+    codexSpeedMode: 'fast',
+  });
+  const apiKeyBody = normalizeProxyJsonBody({
+    type: 'apikey',
+  }, '/v1/responses', {
+    model: 'gpt-5.5',
+    input: 'hello',
+  }, {
+    codexSpeedMode: 'fast',
+  });
+
+  assert.equal(tokenBody.service_tier, 'priority');
+  assert.equal(apiKeyBody.service_tier, undefined);
+});
+
 test('server registers Claude messages compatibility on /v1/messages only', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'openai.js'), 'utf8');
 

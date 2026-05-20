@@ -51,6 +51,43 @@ test('normalizeResponsesRequestBody forces store false when the upstream require
   assert.equal(normalized.store, false);
 });
 
+test('normalizeResponsesRequestBody maps Codex speed mode to service tier', () => {
+  const normalized = normalizeResponsesRequestBody('/v1/responses', {
+    model: 'gpt-5.5',
+    input: 'hello',
+    reasoning: {
+      effort: 'high',
+      summary: 'auto',
+    },
+  }, {
+    codexSpeedMode: 'fast',
+  });
+
+  assert.equal(normalized.service_tier, 'priority');
+  assert.deepEqual(normalized.reasoning, {
+    effort: 'high',
+    summary: 'auto',
+  });
+});
+
+test('normalizeResponsesRequestBody clears service tier in Codex standard mode', () => {
+  const normalized = normalizeResponsesRequestBody('/v1/responses', {
+    model: 'gpt-5.5',
+    input: 'hello',
+    service_tier: 'priority',
+    reasoning: {
+      effort: 'high',
+    },
+  }, {
+    codexSpeedMode: 'standard',
+  });
+
+  assert.equal(normalized.service_tier, undefined);
+  assert.deepEqual(normalized.reasoning, {
+    effort: 'high',
+  });
+});
+
 test('normalizeResponsesRequestBody leaves the model unchanged outside responses paths', () => {
   const normalized = normalizeResponsesRequestBody('/v1/chat/completions', {
     model: 'gpt-5.4-mini',

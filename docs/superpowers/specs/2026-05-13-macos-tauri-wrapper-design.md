@@ -2,7 +2,7 @@
 
 ## 背景
 
-airouter 目前是一个 Node.js 本地代理服务，通过 `node run.js start` 启动，管理页由服务自身暴露在 `/admin/configs`。这种方式适合开发者使用，但如果要交给不熟悉命令行或未安装 Node.js 的用户，就需要一个桌面应用包装层。
+airouter 目前是一个 Node.js 本地代理服务，通过 `node run.js start` 启动，管理页由服务自身暴露在 `/admin/configs/v2`。这种方式适合开发者使用，但如果要交给不熟悉命令行或未安装 Node.js 的用户，就需要一个桌面应用包装层。
 
 本次需求是用 Tauri 写一个 macOS 应用包装 airouter，并且不要侵入现有代码。用户已经明确第一版只支持 macOS，且应用必须自带 Node.js，不能要求用户机器预装 Node。
 

@@ -5,6 +5,7 @@ const {
     getConfigItemType,
     normalizeApiKeySupport,
     normalizeRoutingPreference,
+    normalizeCodexSpeedMode,
 } = require('./openai-config');
 
 class ConfigEditorError extends Error {}
@@ -107,12 +108,34 @@ function normalizeRoutingPreferenceSetting(value) {
     }
 }
 
+function normalizeCodexSpeedModeSetting(value) {
+    try {
+        return normalizeCodexSpeedMode(value);
+    } catch (err) {
+        throw new ConfigEditorError(err.message);
+    }
+}
+
 function normalizeBooleanFlag(value, fieldName) {
     if (typeof value !== 'boolean') {
         throw new ConfigEditorError(`配置项 ${fieldName} 必须是布尔值`);
     }
 
     return value;
+}
+
+function normalizeSortOrder(value) {
+    const normalized = typeof value === 'number' ? String(value) : normalizeString(value);
+    if (!/^\d+$/.test(normalized)) {
+        throw new ConfigEditorError('配置项 sort_order 必须是非负整数');
+    }
+
+    const sortOrder = Number.parseInt(normalized, 10);
+    if (!Number.isSafeInteger(sortOrder) || sortOrder < 0) {
+        throw new ConfigEditorError('配置项 sort_order 必须是非负整数');
+    }
+
+    return sortOrder;
 }
 
 function getEditableFields(type) {
@@ -207,6 +230,14 @@ function normalizeConfigItem(item, existingItem = {}) {
         }
     }
 
+    if (Object.prototype.hasOwnProperty.call(item, 'sort_order')) {
+        if (item.sort_order === null || item.sort_order === undefined || normalizeString(item.sort_order) === '') {
+            delete nextItem.sort_order;
+        } else {
+            nextItem.sort_order = normalizeSortOrder(item.sort_order);
+        }
+    }
+
     return nextItem;
 }
 
@@ -298,6 +329,31 @@ function deleteConfigItem(parsed, index) {
     return validateParsedConfig(nextParsed);
 }
 
+function updateConfigSortOrder(parsed, orderedIndexes) {
+    if (!Array.isArray(orderedIndexes)) {
+        throw new ConfigEditorError('配置排序必须是数组');
+    }
+
+    const nextParsed = cloneParsedConfig(parsed);
+    const seen = new Set();
+
+    orderedIndexes.forEach((rawIndex, orderIndex) => {
+        const targetIndex = typeof rawIndex === 'number' ? rawIndex : Number.parseInt(normalizeString(rawIndex), 10);
+        const configIndex = getConfigIndex(targetIndex, nextParsed);
+        if (seen.has(configIndex)) {
+            throw new ConfigEditorError('配置排序不能包含重复索引');
+        }
+
+        seen.add(configIndex);
+        nextParsed.configs[configIndex] = normalizeConfigItem({
+            ...nextParsed.configs[configIndex],
+            sort_order: (orderIndex + 1) * 10,
+        }, nextParsed.configs[configIndex]);
+    });
+
+    return validateParsedConfig(nextParsed);
+}
+
 function updateConfigSettings(parsed, settings) {
     assertPlainObject(settings, '配置设置必须是对象');
 
@@ -343,6 +399,10 @@ function updateConfigSettings(parsed, settings) {
             mergedResponses.model_aliases = normalizeResponsesModelAliases(nextResponses.model_aliases);
         }
 
+        if (Object.prototype.hasOwnProperty.call(nextResponses, 'codex_speed_mode')) {
+            mergedResponses.codex_speed_mode = normalizeCodexSpeedModeSetting(nextResponses.codex_speed_mode);
+        }
+
         nextParsed.responses = mergedResponses;
     }
 
@@ -365,6 +425,7 @@ module.exports = {
     buildImportedConfigItem,
     updateConfigItem,
     updateConfigSettings,
+    updateConfigSortOrder,
     deleteConfigItem,
     readParsedConfigFile,
     writeParsedConfigFile,

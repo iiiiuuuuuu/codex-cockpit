@@ -115,8 +115,16 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   const server = fs.readFileSync(path.join(__dirname, '..', 'openai.js'), 'utf8');
 
   assert.match(server, /app\.get\('\/admin\/configs\/v2'/);
+  assert.match(server, /app\.get\('\/admin\/configs'/);
+  assert.match(server, /res\.redirect\(308, `\/admin\/configs\/v2\$\{queryString\}`\)/);
+  assert.match(server, /return `\/admin\/configs\/v2\?auth_token=/);
   assert.match(server, /app\.patch\('\/admin\/api\/configs\/:index'/);
-  assert.match(html, /Codex 驾驶舱/);
+  assert.match(html, /<title>AI Cockpit<\/title>/);
+  assert.match(html, /<h1 class="brand-title">AI Cockpit<\/h1>/);
+  assert.match(html, /账号与入口管理/);
+  assert.match(html, /统一管理 Token 账号、API Key 上游、访问密钥和本地代理入口。/);
+  assert.match(html, />账号与密钥<\/span>/);
+  assert.match(html, />新增接入<\/span>/);
   assert.match(html, /<script src="\/config-admin\.js"><\/script>/);
   assert.match(html, /buildConfigSnapshotRequest/);
   assert.match(html, /data-section-target="accountsSection"/);
@@ -152,6 +160,11 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /id="saveProxySettingsButton"/);
   assert.match(html, /id="routingPreferenceCurrent"/);
   assert.match(html, /id="editRoutingPreferenceButton"/);
+  assert.match(html, /Codex 速度模式/);
+  assert.match(html, /data-codex-speed-mode="standard"/);
+  assert.match(html, /data-codex-speed-mode="fast"/);
+  assert.match(html, /saveCodexSpeedMode/);
+  assert.match(html, /codex_speed_mode: mode/);
   assert.match(html, /id="routingPreferenceModalBackdrop"/);
   assert.match(html, /id="routingPreferenceModalSaveButton"/);
   assert.match(html, /id="logsSection"/);
@@ -172,6 +185,9 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /data-action="delete"/);
   assert.match(html, /data-action="refresh"/);
   assert.match(html, /data-action="toggle-auto-switch"/);
+  assert.match(html, /sort_order/);
+  assert.match(html, /data-draggable-account/);
+  assert.match(html, /\/admin\/api\/configs\/order/);
   assert.match(html, /auto_switch_disabled/);
   assert.match(html, /不自动切入/);
   assert.match(html, /\/admin\/api\/configs\/\$\{index\}\/refresh/);
@@ -195,6 +211,13 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /background: true/);
   assert.match(html, /最后检查/);
   assert.match(html, /不可用原因/);
+  assert.match(html, /detail-line error/);
+  assert.match(html, /不可用原因：\$\{escapeHtml\(getUnavailableReasonText\(item, healthText, errorText\)\)\}/);
+  assert.match(html, /getUnavailableReasonText/);
+  assert.match(html, /stripDiagnosticIds/);
+  assert.match(html, /鉴权失败 401，请重新登录或更新 Token/);
+  assert.match(html, /上游鉴权失败 401，请检查 API Key 或 Base URL/);
+  assert.match(html, /额度检查失败，请稍后重试或重新登录该 Token/);
   assert.match(html, /当前使用：/);
   assert.match(html, /formatSelectionReason/);
   assert.match(html, /formatRuntimeErrorText/);
@@ -221,7 +244,17 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /<strong>不可用<\/strong>/);
   assert.match(html, /5小时 &lt; 3%/);
   assert.match(html, /周配额 ≤ 1%/);
-  assert.match(html, /legacyLink\.href = withAuthToken\('\/admin\/configs'\)/);
+  assert.doesNotMatch(html, /legacyLink/);
+  assert.doesNotMatch(html, /返回旧版配置页/);
+});
+
+test('config admin v2 auto-dismisses ordinary messages while keeping auth errors visible', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'codex-accounts.html'), 'utf8');
+
+  assert.match(html, /function setMessage\(type, text, options = \{\}\)/);
+  assert.match(html, /if \(!options\.persist\)/);
+  assert.match(html, /const timeoutMs = type === 'error' \? 3000 : 1000/);
+  assert.match(html, /setMessage\('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。', \{ persist: true \}\)/);
 });
 
 test('buildProxyAccessInfo builds displayed proxy URLs from runtime and configured ports', () => {

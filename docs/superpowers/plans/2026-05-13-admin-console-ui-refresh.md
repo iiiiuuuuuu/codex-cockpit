@@ -813,7 +813,7 @@ Expected: all tests pass.
 
 - [ ] **Step 2: Open the local admin page in the browser**
 
-Use the existing local service at `http://127.0.0.1:3009/admin/configs?auth_token=<local token>`. Do not print the token in the final answer.
+Use the existing local service at `http://127.0.0.1:3009/admin/configs/v2?auth_token=<local token>`. Do not print the token in the final answer.
 
 Expected desktop checks:
 

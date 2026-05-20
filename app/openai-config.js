@@ -6,9 +6,11 @@ const DEFAULT_CLAUDE_API_KEY_PROBE_MODEL = 'claude-opus-4-7';
 const DEFAULT_GPT_API_KEY_PROBE_MODEL = 'gpt-5.5';
 const DEFAULT_GPT_API_KEY_FALLBACK_PROBE_MODEL = 'gpt-5.4';
 const DEFAULT_ROUTING_PREFERENCE = 'token_first';
+const DEFAULT_CODEX_SPEED_MODE = 'standard';
 const SUPPORTED_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
 const SUPPORTED_APIKEY_CAPABILITIES = new Set(['gpt', 'claude']);
 const SUPPORTED_ROUTING_PREFERENCES = new Set(['token_first', 'apikey_first', 'token_only', 'apikey_only']);
+const SUPPORTED_CODEX_SPEED_MODES = new Set(['standard', 'fast']);
 
 function isPlainObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -122,6 +124,19 @@ function normalizeRoutingPreference(value) {
     return preference;
 }
 
+function normalizeCodexSpeedMode(value) {
+    if (value === undefined || value === null || normalizeString(value) === '') {
+        return DEFAULT_CODEX_SPEED_MODE;
+    }
+
+    const mode = normalizeString(value);
+    if (!SUPPORTED_CODEX_SPEED_MODES.has(mode)) {
+        throw new Error('配置文件 responses.codex_speed_mode 仅支持 standard 或 fast');
+    }
+
+    return mode;
+}
+
 function parseOpenAiConfigFile(raw) {
     const parsed = JSON.parse(raw);
 
@@ -158,6 +173,17 @@ function parseOpenAiConfigFile(raw) {
             typeof config.auto_switch_disabled !== 'boolean'
         ) {
             throw new Error('配置项 auto_switch_disabled 必须是布尔值');
+        }
+
+        if (config.sort_order !== undefined) {
+            const rawSortOrder = typeof config.sort_order === 'number' ? String(config.sort_order) : config.sort_order;
+            if (
+                typeof rawSortOrder !== 'string' ||
+                !/^\d+$/.test(rawSortOrder.trim()) ||
+                !Number.isSafeInteger(Number.parseInt(rawSortOrder.trim(), 10))
+            ) {
+                throw new Error('配置项 sort_order 必须是非负整数');
+            }
         }
     }
 
@@ -238,6 +264,10 @@ function parseOpenAiConfigFile(raw) {
                 }
             }
         }
+
+        if (parsed.responses.codex_speed_mode !== undefined) {
+            normalizeCodexSpeedMode(parsed.responses.codex_speed_mode);
+        }
     }
 
     return parsed;
@@ -271,7 +301,8 @@ function resolveResponsesOptions(parsed) {
     }
 
     return {
-        modelAliases
+        modelAliases,
+        codexSpeedMode: normalizeCodexSpeedMode(responses.codex_speed_mode)
     };
 }
 
@@ -376,6 +407,7 @@ module.exports = {
     getConfigItemType,
     normalizeApiKeySupport,
     normalizeRoutingPreference,
+    normalizeCodexSpeedMode,
     configSupportsCapability,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring

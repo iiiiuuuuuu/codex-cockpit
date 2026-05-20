@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Codex 驾驶舱</title>
+  <title>AI Cockpit</title>
   <style>
     :root {
       --page: #f6f9fd;
@@ -398,6 +398,14 @@
       align-items: stretch;
     }
 
+    .accounts-grid.drag-active {
+      user-select: none;
+    }
+
+    .accounts-grid.drag-active .account-card[data-draggable-account="true"]:not(.dragging) {
+      transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+    }
+
     .account-card,
     .panel {
       border: 1px solid rgba(222, 230, 241, 0.9);
@@ -414,6 +422,54 @@
       border-radius: 12px;
       position: relative;
       overflow: hidden;
+    }
+
+    .account-card[data-draggable-account="true"] {
+      cursor: grab;
+    }
+
+    .account-card[data-draggable-account="true"]:hover {
+      border-color: rgba(37, 99, 235, 0.22);
+      transform: translateY(-1px);
+      box-shadow: 0 18px 36px rgba(30, 41, 59, 0.11);
+    }
+
+    .account-card[data-draggable-account="true"]:active {
+      cursor: grabbing;
+    }
+
+    .account-card.dragging {
+      opacity: 0.48;
+      transform: scale(0.985) translateY(-2px);
+      box-shadow: 0 20px 46px rgba(30, 41, 59, 0.2);
+    }
+
+    .account-card.drag-over {
+      border-color: rgba(37, 99, 235, 0.55);
+      background: #f8fbff;
+      box-shadow: 0 18px 38px rgba(37, 99, 235, 0.16);
+      transform: translateY(-2px);
+    }
+
+    .account-card.drag-over-before::after,
+    .account-card.drag-over-after::after {
+      content: "";
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      width: 4px;
+      border-radius: 999px;
+      background: var(--blue);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.13);
+      z-index: 3;
+    }
+
+    .account-card.drag-over-before::after {
+      left: -2px;
+    }
+
+    .account-card.drag-over-after::after {
+      right: -2px;
     }
 
     .account-card.current {
@@ -967,7 +1023,7 @@
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
-      align-items: center;
+      align-items: end;
       padding-top: 6px;
       border-top: 1px solid #e8edf4;
     }
@@ -984,6 +1040,7 @@
     .card-actions {
       display: flex;
       gap: 4px;
+      align-self: end;
     }
 
     .card-action {
@@ -1149,6 +1206,60 @@
     .routing-preference-edit svg {
       width: 13px;
       height: 13px;
+    }
+
+    .codex-speed-mode-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 22px;
+      color: #687891;
+      white-space: nowrap;
+    }
+
+    .codex-speed-label {
+      color: #53637a;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 760;
+    }
+
+    .codex-speed-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+      min-width: 104px;
+      padding: 1px;
+      border: 1px solid rgba(199, 212, 229, 0.92);
+      border-radius: 9px;
+      background: #eef3f9;
+      box-shadow: inset 0 1px 2px rgba(30, 41, 59, 0.04);
+    }
+
+    .codex-speed-option {
+      flex: 1 1 0;
+      min-width: 48px;
+      height: 20px;
+      padding: 0 9px;
+      border: 0;
+      border-radius: 7px;
+      color: #6c7b90;
+      background: transparent;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 760;
+      cursor: pointer;
+    }
+
+    .codex-speed-option.active {
+      color: #172238;
+      background: #ffffff;
+      box-shadow: 0 1px 5px rgba(30, 41, 59, 0.12);
+    }
+
+    .codex-speed-option:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
     }
 
     .logs-panel {
@@ -1646,18 +1757,18 @@
   <div class="shell">
     <aside class="sidebar" aria-label="配置导航">
       <div class="brand">
-        <h1 class="brand-title">Codex 驾驶舱</h1>
+        <h1 class="brand-title">AI Cockpit</h1>
         <p class="brand-subtitle">账号、入口密钥和本地代理集中管理。</p>
       </div>
 
       <nav class="nav-list">
         <button class="nav-button active" type="button" data-section-target="accountsSection">
           <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 16c4-1 7-4 8-8"/><path d="M12 8l4-4 4 4-4 4z"/><path d="M5 16l-1 4 4-1 9-9"/></svg></span>
-          <span>账号列表</span>
+          <span>账号与密钥</span>
         </button>
         <button class="nav-button" type="button" data-section-target="addAccountSection">
           <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
-          <span>新增配置</span>
+          <span>新增接入</span>
         </button>
         <button class="nav-button" type="button" data-section-target="accessSection">
           <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M15 7a4 4 0 1 0-7.2 2.4L3 14.2V18h3.8l4.8-4.8A4 4 0 0 0 15 7z"/><path d="M14 6l4 4"/></svg></span>
@@ -1673,7 +1784,6 @@
         </button>
       </nav>
 
-      <a class="legacy-link" id="legacyLink" href="/admin/configs">返回旧版配置页</a>
     </aside>
 
     <main class="main">
@@ -1682,8 +1792,8 @@
       <section id="accountsSection" class="section active">
         <div class="section-head">
           <div>
-            <h2 class="page-title">Codex 账号管理</h2>
-            <p class="page-note">查看当前账号、刷新单个账号、编辑别名和清理不再使用的配置。</p>
+            <h2 class="page-title">账号与入口管理</h2>
+            <p class="page-note">统一管理 Token 账号、API Key 上游、访问密钥和本地代理入口。</p>
           </div>
           <div class="button-row">
             <button class="command quota-overview-trigger" type="button" id="quotaOverviewButton">Token 额度趋势</button>
@@ -1699,6 +1809,13 @@
                 <button class="icon-button routing-preference-edit" type="button" id="editRoutingPreferenceButton" aria-label="编辑使用偏好">
                   <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
                 </button>
+              </li>
+              <li class="codex-speed-mode-item">
+                <span class="codex-speed-label">Codex 速度模式</span>
+                <span class="codex-speed-toggle" role="group" aria-label="Codex 速度模式">
+                  <button class="codex-speed-option active" type="button" data-codex-speed-mode="standard" aria-pressed="true" title="Codex 官方 Standard 模式，不启用 Fast 服务层">标准</button>
+                  <button class="codex-speed-option" type="button" data-codex-speed-mode="fast" aria-pressed="false" title="Codex 官方 Fast 服务层，不修改推理强度">Fast</button>
+                </span>
               </li>
             </ul>
           </div>
@@ -2009,12 +2126,12 @@
     const routingPreferenceModalCancelButton = document.getElementById('routingPreferenceModalCancelButton');
     const routingPreferenceModalSaveButton = document.getElementById('routingPreferenceModalSaveButton');
     const routingPreferenceModalButtons = [...document.querySelectorAll('[data-routing-preference]')];
+    const codexSpeedModeButtons = [...document.querySelectorAll('[data-codex-speed-mode]')];
     const servicePortInput = document.getElementById('servicePortInput');
     const proxyPortInput = document.getElementById('proxyPortInput');
     const proxyV1Url = document.getElementById('proxyV1Url');
     const proxyEndpointMeta = document.getElementById('proxyEndpointMeta');
     const saveProxySettingsButton = document.getElementById('saveProxySettingsButton');
-    const legacyLink = document.getElementById('legacyLink');
     const aliasModalBackdrop = document.getElementById('aliasModalBackdrop');
     const aliasModalNote = document.getElementById('aliasModalNote');
     const aliasInput = document.getElementById('aliasInput');
@@ -2050,6 +2167,8 @@
     let quotaOverviewEchartsInstance = null;
     let echartsLoadPromise = null;
     let routingPreferenceDraft = 'token_first';
+    let codexSpeedModeSaving = false;
+    let draggedAccountIndex = null;
     let logsRequestInFlight = false;
     let logsPollTimer = null;
     let snapshotPollTimer = null;
@@ -2109,7 +2228,7 @@
       });
     }
 
-    function setMessage(type, text) {
+    function setMessage(type, text, options = {}) {
       if (messageTimer) {
         window.clearTimeout(messageTimer);
         messageTimer = null;
@@ -2124,10 +2243,11 @@
       messageEl.className = `message show ${type}`;
       messageEl.textContent = text;
 
-      if (type === 'info') {
+      if (!options.persist) {
+        const timeoutMs = type === 'error' ? 3000 : 1000;
         messageTimer = window.setTimeout(() => {
           setMessage('', '');
-        }, 3800);
+        }, timeoutMs);
       }
     }
 
@@ -3321,7 +3441,7 @@
       return 'available';
     }
 
-    function getRuntimeError(runtime) {
+    function getRuntimeError(runtime, item = null) {
       let errorText = '';
       if (runtime && typeof runtime.last_error === 'string' && runtime.last_error.trim()) {
         errorText = runtime.last_error.trim();
@@ -3331,20 +3451,72 @@
         errorText = match ? match[1].trim() : '';
       }
 
-      return formatRuntimeErrorText(errorText);
+      return formatRuntimeErrorText(errorText, item);
     }
 
-    function formatRuntimeErrorText(errorText) {
+    function formatRuntimeErrorText(errorText, item = null) {
       if (!errorText) {
         return '';
       }
 
-      return String(errorText)
+      const normalizedText = stripDiagnosticIds(errorText);
+      const lowerText = normalizedText.toLowerCase();
+      if (/\bquota check status\s+401\b/i.test(normalizedText) || /\b401\b/.test(normalizedText) && /auth|unauthorized|鉴权|认证/.test(lowerText)) {
+        if (item && isApiKeyConfig(item)) {
+          return '上游鉴权失败 401，请检查 API Key 或 Base URL';
+        }
+        return '鉴权失败 401，请重新登录或更新 Token';
+      }
+      if (/api key|apikey/.test(lowerText) && /\b401\b|unauthorized|invalid|鉴权|认证/.test(lowerText)) {
+        return '上游鉴权失败 401，请检查 API Key 或 Base URL';
+      }
+      if (/monthly quota exceeded/i.test(normalizedText)) {
+        return '上游月度额度已用完';
+      }
+      if (/insufficient quota/i.test(normalizedText)) {
+        return '上游额度不足';
+      }
+      if (/quota exceeded|usage limit/i.test(normalizedText)) {
+        return '上游额度已用完';
+      }
+      if (/timeout|timed out|超时/.test(lowerText)) {
+        return '检查请求超时，请稍后重试';
+      }
+      if (/network|socket|tls|econnreset|etimedout|connection|连接/.test(lowerText)) {
+        return '网络连接失败，请检查代理或上游连通性';
+      }
+
+      return normalizedText
         .replace(/\bquota check status\s+401\b/gi, '额度检查接口鉴权失败（401）')
         .replace(/\bmonthly quota exceeded\b/gi, '上游月度额度已用完')
         .replace(/\binsufficient quota\b/gi, '上游额度不足')
-        .replace(/\bquota exceeded\b/gi, '上游额度已用完')
-        .replace(/\(request_id:\s*([^)]+)\)/gi, '（请求编号：$1）');
+        .replace(/\bquota exceeded\b/gi, '上游额度已用完');
+    }
+
+    function stripDiagnosticIds(errorText) {
+      return String(errorText || '')
+        .replace(/\s*\(request_id:\s*[^)]+\)/gi, '')
+        .replace(/\s*\[request_id:\s*[^\]]+\]/gi, '')
+        .replace(/\s*\[trace_id:\s*[^\]]+\]/gi, '')
+        .replace(/\s*request[_ -]?id[:=]\s*\S+/gi, '')
+        .replace(/\s*trace[_ -]?id[:=]\s*\S+/gi, '')
+        .trim();
+    }
+
+    function getUnavailableReasonText(item, healthText, errorText) {
+      if (errorText) {
+        return errorText;
+      }
+
+      if (isApiKeyConfig(item)) {
+        return '上游不可用，请检查 API Key 或 Base URL';
+      }
+
+      if (item.runtime?.reason === 'quota_check_failed') {
+        return '额度检查失败，请稍后重试或重新登录该 Token';
+      }
+
+      return healthText || '当前账号不可用，请查看运行日志';
     }
 
     function formatReasonText(reason) {
@@ -3444,7 +3616,7 @@
       const primaryPercent = getPrimaryPercent(item.runtime);
       const weeklyPercent = getWeeklyPercent(item.runtime);
       const planLabel = getPlanLabel(item);
-      const errorText = getRuntimeError(item.runtime);
+      const errorText = getRuntimeError(item.runtime, item);
       const healthText = getHealthText(item);
       const autoSwitchDisabled = isAutoSwitchDisabled(item);
       const cardClass = [
@@ -3473,12 +3645,12 @@
         `;
       const selectionReason = item.is_active ? formatSelectionReason(item.runtime?.last_selection_reason) : '';
       const detailTitle = availability === 'unavailable'
-        ? `不可用原因：${healthText}${errorText ? `；${errorText}` : ''}`
+        ? `不可用原因：${getUnavailableReasonText(item, healthText, errorText)}`
         : selectionReason
           ? `当前使用：${selectionReason}`
           : `状态：${healthText}`;
       const detailLine = availability === 'unavailable'
-        ? `<div class="detail-line error" title="${escapeHtml(detailTitle)}">不可用原因：${escapeHtml(healthText)}${errorText ? `；${escapeHtml(errorText)}` : ''}</div>`
+        ? `<div class="detail-line error" title="${escapeHtml(detailTitle)}">不可用原因：${escapeHtml(getUnavailableReasonText(item, healthText, errorText))}</div>`
         : selectionReason
           ? `<div class="detail-line" title="${escapeHtml(detailTitle)}">当前使用：${escapeHtml(selectionReason)}</div>`
           : `<div class="detail-line" title="${escapeHtml(detailTitle)}">状态：${escapeHtml(healthText)}</div>`;
@@ -3493,9 +3665,11 @@
         <div class="stamp">最后检查：${escapeHtml(formatLastChecked(item.runtime))}</div>
         ${detailLine}
       `;
+      const canDrag = !item.is_active;
+      const dragTitle = canDrag ? '拖动调整展示顺序' : '当前使用固定置顶';
 
       return `
-        <article class="${cardClass}" data-account-card data-index="${item.index}">
+        <article class="${cardClass}" data-account-card data-index="${item.index}" data-draggable-account="${canDrag ? 'true' : 'false'}" ${canDrag ? 'draggable="true"' : ''}>
           <div class="account-head">
             <div class="account-topline">
               <div class="account-title-group">
@@ -3543,12 +3717,33 @@
       return Array.isArray(snapshot?.configs) ? snapshot.configs : [];
     }
 
-    function getVisibleAccounts() {
+    function getAccountSortOrder(item) {
+      const rawValue = item?.item?.sort_order;
+      if (typeof rawValue === 'number' && Number.isFinite(rawValue)) {
+        return rawValue;
+      }
+      if (typeof rawValue === 'string' && rawValue.trim() && !Number.isNaN(Number(rawValue))) {
+        return Number(rawValue);
+      }
+      return item.index;
+    }
+
+    function getConfiguredOrderAccounts() {
       return [...getManagedConfigs()].sort((left, right) => {
+        const orderDiff = getAccountSortOrder(left) - getAccountSortOrder(right);
+        if (orderDiff !== 0) {
+          return orderDiff;
+        }
+        return left.index - right.index;
+      });
+    }
+
+    function getVisibleAccounts() {
+      return getConfiguredOrderAccounts().sort((left, right) => {
         if (left.is_active !== right.is_active) {
           return left.is_active ? -1 : 1;
         }
-        return left.index - right.index;
+        return 0;
       });
     }
 
@@ -3620,6 +3815,16 @@
         note: '只允许 API Key 账号参与自动切换。',
       },
     };
+    const codexSpeedModeMeta = {
+      standard: {
+        label: '标准',
+        message: 'Codex 速度模式已切换为标准。',
+      },
+      fast: {
+        label: 'Fast',
+        message: 'Codex 速度模式已切换为 Fast。',
+      },
+    };
 
     function getRoutingPreferenceValue(data) {
       const preference = data && typeof data.routing_preference === 'string'
@@ -3644,6 +3849,23 @@
       setRoutingPreferenceDraft(preference);
     }
 
+    function getCodexSpeedModeValue(data) {
+      const mode = data?.responses && typeof data.responses.codex_speed_mode === 'string'
+        ? data.responses.codex_speed_mode
+        : 'standard';
+      return codexSpeedModeMeta[mode] ? mode : 'standard';
+    }
+
+    function renderCodexSpeedMode(data) {
+      const mode = getCodexSpeedModeValue(data);
+      codexSpeedModeButtons.forEach(button => {
+        const active = button.dataset.codexSpeedMode === mode;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.disabled = codexSpeedModeSaving;
+      });
+    }
+
     function renderAll() {
       const apikeys = Array.isArray(snapshot?.apikeys) ? snapshot.apikeys : [];
       renderAccounts();
@@ -3652,8 +3874,8 @@
       renderApiKeys(apikeys);
       renderProxySettings(snapshot || {});
       renderRoutingPreference(snapshot || {});
+      renderCodexSpeedMode(snapshot || {});
       rawJsonInput.placeholder = getConfigGuideContent(snapshot || {}).rawJsonPlaceholder;
-      legacyLink.href = withAuthToken('/admin/configs');
     }
 
     function scrollLogsToBottom() {
@@ -3853,7 +4075,7 @@
         }
 
         if (error.status === 401) {
-          setMessage('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。');
+          setMessage('error', '当前管理地址缺少或带错 auth_token，请重新使用正确的管理后台链接访问。', { persist: true });
           accountsGrid.innerHTML = '<div class="empty">当前管理地址缺少或带错 auth_token。</div>';
           return;
         }
@@ -3979,6 +4201,66 @@
       renderAll();
       closeRoutingPreferenceModal();
       setMessage('info', '使用偏好已保存，账号选择已按新规则校正。');
+    }
+
+    async function saveCodexSpeedMode(mode) {
+      if (!codexSpeedModeMeta[mode] || mode === getCodexSpeedModeValue(snapshot || {}) || codexSpeedModeSaving) {
+        return;
+      }
+
+      codexSpeedModeSaving = true;
+      renderCodexSpeedMode(snapshot || {});
+      try {
+        const result = await requestJson('/admin/api/settings', {
+          method: 'POST',
+          body: JSON.stringify({
+            responses: {
+              codex_speed_mode: mode,
+            },
+          }),
+        });
+
+        snapshot = result;
+        renderAll();
+        setMessage('info', codexSpeedModeMeta[mode].message);
+      } finally {
+        codexSpeedModeSaving = false;
+        renderCodexSpeedMode(snapshot || {});
+      }
+    }
+
+    function moveIndexValue(values, draggedValue, targetValue, insertAfter) {
+      const withoutDragged = values.filter(value => value !== draggedValue);
+      const targetPosition = withoutDragged.indexOf(targetValue);
+      if (targetPosition === -1) {
+        return values;
+      }
+
+      const insertPosition = targetPosition + (insertAfter ? 1 : 0);
+      withoutDragged.splice(insertPosition, 0, draggedValue);
+      return withoutDragged;
+    }
+
+    function buildPersistedOrderFromVisibleNonActive(nonActiveIndexes) {
+      const nonActiveQueue = [...nonActiveIndexes];
+      return getConfiguredOrderAccounts().map(item => {
+        if (item.is_active) {
+          return item.index;
+        }
+        return nonActiveQueue.shift();
+      }).filter(index => index !== undefined);
+    }
+
+    async function saveAccountSortOrder(nonActiveIndexes) {
+      const orderedIndexes = buildPersistedOrderFromVisibleNonActive(nonActiveIndexes);
+      snapshot = await requestJson('/admin/api/configs/order', {
+        method: 'POST',
+        body: JSON.stringify({
+          ordered_indexes: orderedIndexes,
+        }),
+      });
+      renderAll();
+      setMessage('info', '展示顺序已保存。');
     }
 
     async function activateConfig(index) {
@@ -4173,6 +4455,16 @@
       });
     });
 
+    codexSpeedModeButtons.forEach(button => {
+      button.addEventListener('click', async () => {
+        try {
+          await saveCodexSpeedMode(button.dataset.codexSpeedMode);
+        } catch (error) {
+          setMessage('error', error.message);
+        }
+      });
+    });
+
     aliasModalBackdrop.addEventListener('click', event => {
       if (event.target === aliasModalBackdrop) {
         closeAliasModal();
@@ -4337,7 +4629,7 @@
           const target = result.target;
           const retryText = result.attempts > 1 ? ` 已重试 ${result.attempts - 1} 次。` : '';
           if (target && target.runtime?.available === false) {
-            const reason = getRuntimeError(target.runtime) || getHealthText(target);
+            const reason = getUnavailableReasonText(target, getHealthText(target), getRuntimeError(target.runtime, target));
             setMessage('error', `仅刷新此账号完成：账号不可用，${reason}。${retryText}`);
           } else {
             setMessage('info', `仅刷新此账号完成：账号可用。${retryText}`);
@@ -4362,6 +4654,85 @@
       }
     });
 
+    accountsGrid.addEventListener('dragstart', event => {
+      const interactiveTarget = event.target.closest('button, input, textarea, select, a, [data-action]');
+      const card = event.target.closest('[data-account-card]');
+      if (interactiveTarget) {
+        event.preventDefault();
+        return;
+      }
+      if (!card || card.dataset.draggableAccount !== 'true') {
+        event.preventDefault();
+        return;
+      }
+
+      draggedAccountIndex = Number(card.dataset.index);
+      card.classList.add('dragging');
+      accountsGrid.classList.add('drag-active');
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(draggedAccountIndex));
+    });
+
+    accountsGrid.addEventListener('dragover', event => {
+      const card = event.target.closest('[data-account-card]');
+      if (!card || card.dataset.draggableAccount !== 'true' || draggedAccountIndex === null || Number(card.dataset.index) === draggedAccountIndex) {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      const rect = card.getBoundingClientRect();
+      const insertAfter = event.clientY > rect.top + rect.height / 2 || event.clientX > rect.left + rect.width / 2;
+      document.querySelectorAll('[data-account-card].drag-over').forEach(item => {
+        if (item !== card) {
+          item.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
+        }
+      });
+      card.classList.add('drag-over');
+      card.classList.toggle('drag-over-before', !insertAfter);
+      card.classList.toggle('drag-over-after', insertAfter);
+    });
+
+    accountsGrid.addEventListener('dragleave', event => {
+      const card = event.target.closest('[data-account-card]');
+      if (card && !card.contains(event.relatedTarget)) {
+        card.classList.remove('drag-over', 'drag-over-before', 'drag-over-after');
+      }
+    });
+
+    accountsGrid.addEventListener('drop', async event => {
+      const card = event.target.closest('[data-account-card]');
+      if (!card || card.dataset.draggableAccount !== 'true' || draggedAccountIndex === null) {
+        return;
+      }
+
+      event.preventDefault();
+      const targetIndex = Number(card.dataset.index);
+      if (targetIndex === draggedAccountIndex) {
+        return;
+      }
+
+      const rect = card.getBoundingClientRect();
+      const insertAfter = event.clientY > rect.top + rect.height / 2 || event.clientX > rect.left + rect.width / 2;
+      const nonActiveIndexes = getVisibleAccounts()
+        .filter(item => !item.is_active)
+        .map(item => item.index);
+      const nextNonActiveIndexes = moveIndexValue(nonActiveIndexes, draggedAccountIndex, targetIndex, insertAfter);
+      try {
+        await saveAccountSortOrder(nextNonActiveIndexes);
+      } catch (error) {
+        setMessage('error', error.message);
+      }
+    });
+
+    accountsGrid.addEventListener('dragend', () => {
+      draggedAccountIndex = null;
+      accountsGrid.classList.remove('drag-active');
+      document.querySelectorAll('[data-account-card].dragging, [data-account-card].drag-over, [data-account-card].drag-over-before, [data-account-card].drag-over-after').forEach(card => {
+        card.classList.remove('dragging', 'drag-over', 'drag-over-before', 'drag-over-after');
+      });
+    });
+
     apiKeysListEl.addEventListener('click', async event => {
       const button = event.target.closest('[data-action="delete-apikey"]');
       if (!button) {
@@ -4383,7 +4754,6 @@
     });
 
     updateConfigMode('token');
-    legacyLink.href = withAuthToken('/admin/configs');
     loadSnapshot();
     startSnapshotPolling();
     startLogsPolling();

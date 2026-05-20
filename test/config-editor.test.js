@@ -9,6 +9,7 @@ const {
   addConfigItem,
   buildImportedConfigItem,
   updateConfigItem,
+  updateConfigSortOrder,
   updateConfigSettings,
   deleteConfigItem,
   readParsedConfigFile,
@@ -260,6 +261,56 @@ test('updateConfigItem normalizes auto switch disabled flags', () => {
   assert.equal(Object.prototype.hasOwnProperty.call(enabled.configs[0], 'auto_switch_disabled'), false);
 });
 
+test('updateConfigItem normalizes sort_order', () => {
+  const parsed = createTokenConfig();
+
+  const next = updateConfigItem(parsed, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    sort_order: ' 30 ',
+  });
+
+  assert.equal(next.configs[0].sort_order, 30);
+});
+
+test('updateConfigSortOrder persists display order fields without moving configs', () => {
+  const parsed = createTokenConfig({
+    configs: [
+      {
+        access_token: 'token-1',
+        account_id: 'account-1',
+        description: 'first',
+      },
+      {
+        access_token: 'token-2',
+        account_id: 'account-2',
+        description: 'second',
+      },
+      {
+        access_token: 'token-3',
+        account_id: 'account-3',
+        description: 'third',
+      },
+    ],
+  });
+
+  const next = updateConfigSortOrder(parsed, [2, 0, 1]);
+
+  assert.deepEqual(next.configs.map(item => item.description), ['first', 'second', 'third']);
+  assert.deepEqual(next.configs.map(item => item.sort_order), [20, 30, 10]);
+});
+
+test('updateConfigSortOrder rejects duplicate indexes', () => {
+  assert.throws(() => {
+    updateConfigSortOrder(createTokenConfig(), [0, 0]);
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /重复索引/);
+    return true;
+  });
+});
+
 test('deleteConfigItem allows removing the last remaining config', () => {
   const next = deleteConfigItem(createTokenConfig(), 0);
 
@@ -336,6 +387,7 @@ test('updateConfigSettings rejects invalid port settings', () => {
 test('updateConfigSettings normalizes responses.model_aliases and preserves other settings', () => {
   const next = updateConfigSettings(createTokenConfig(), {
     responses: {
+      codex_speed_mode: 'fast',
       model_aliases: {
         '  GPT-5.2  ': '  gpt-5.5  ',
         'o3-mini': ' gpt-5.4 ',
@@ -344,6 +396,7 @@ test('updateConfigSettings normalizes responses.model_aliases and preserves othe
   });
 
   assert.deepEqual(next.responses, {
+    codex_speed_mode: 'fast',
     model_aliases: {
       'GPT-5.2': 'gpt-5.5',
       'o3-mini': 'gpt-5.4',
@@ -351,6 +404,20 @@ test('updateConfigSettings normalizes responses.model_aliases and preserves othe
   });
   assert.equal(next.claude_code.model, 'gpt-5.4');
   assert.equal(next.configs.length, 1);
+});
+
+test('updateConfigSettings rejects invalid responses.codex_speed_mode', () => {
+  assert.throws(() => {
+    updateConfigSettings(createTokenConfig(), {
+      responses: {
+        codex_speed_mode: 'turbo',
+      },
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /responses\.codex_speed_mode 仅支持 standard 或 fast/);
+    return true;
+  });
 });
 
 test('updateConfigSettings rejects non-object responses.model_aliases', () => {

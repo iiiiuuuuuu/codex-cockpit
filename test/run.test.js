@@ -212,7 +212,7 @@ test('start waits briefly for startup links when logs arrive late', () => {
   const workspace = prepareWorkspace(
     buildManagedAppScript({
       startupLog: null,
-      delayedStartupLog: '配置管理: http://localhost:3009/admin/configs',
+      delayedStartupLog: '配置管理: http://localhost:3009/admin/configs/v2',
       delayedStartupLogMs: 600,
     }),
     'old log line\n'
@@ -221,7 +221,7 @@ test('start waits briefly for startup links when logs arrive late', () => {
   const startResult = runCommand(['start'], workspace);
 
   assert.equal(startResult.status, 0, startResult.stderr);
-  assert.match(startResult.stdout, /配置管理: http:\/\/localhost:3009\/admin\/configs/);
+  assert.match(startResult.stdout, /配置管理: http:\/\/localhost:3009\/admin\/configs\/v2/);
   assert.doesNotMatch(startResult.stdout, /old log line/);
 
   const stopResult = runCommand(['stop'], workspace);

@@ -8,6 +8,7 @@
     "reasoning_effort": "high"
   },
   "responses": {
+    "codex_speed_mode": "standard",
     "model_aliases": {
       "gpt-5.2": "gpt-5.5"
     }

@@ -14,6 +14,7 @@
     "reasoning_effort": "high"
   },
   "responses": {
+    "codex_speed_mode": "standard",
     "model_aliases": {
       "gpt-5.2": "gpt-5.5"
     }
@@ -57,13 +58,15 @@
 - `port` 填服务监听端口，不填时默认 `3009`
 - `apikeys` 为入口请求校验密钥数组，支持 `Authorization: Bearer <apikey>` 或 `x-api-key`
 - `apikeys` 为空时，不校验入口请求；只要数组非空，请求就必须命中其中一个 key
-- `auth_token` 为管理后台访问令牌；配置页必须通过 `.../admin/configs?auth_token=<token>` 访问
+- `auth_token` 为管理后台访问令牌；配置页必须通过 `.../admin/configs/v2?auth_token=<token>` 访问
 - `auth_token` 为空或缺失时，服务启动后会自动生成并写回配置文件
 - `claude_code.model` 用来强制覆盖 Claude Code 走 `/v1/messages` token 兼容转换链路时上游实际使用的模型
 - `claude_code.reasoning_effort` 用来强制覆盖 Claude Code 走 `/v1/messages` token 兼容转换链路时的推理强度，默认 `high`，支持枚举：`none`、`minimal`、`low`、`medium`、`high`、`xhigh`
 - 以上 `claude_code` 配置只作用于 `/v1/messages` 的 token 兼容转换链路，不会影响普通 `/v1/*` OpenAI 兼容接口，也不会影响 `support` 包含 `claude` 的 `apikey` 原样转发链路
+- `responses.codex_speed_mode` 是 Codex 官方速度模式，支持 `standard` 和 `fast`；`standard` 会清除请求里的 `service_tier`，`fast` 映射为 `service_tier: "priority"`，仅作用于 token-backed `/v1/responses` 请求，不会修改 `reasoning.effort`
 - `responses.model_aliases` 用来给 `/v1/responses` 请求里的 `model` 做别名替换，键和值都必须是非空字符串
 - `responses.model_aliases` 的键比较时忽略大小写，例如配置 `GPT-5.2` 也会匹配请求里的 `gpt-5.2`
+- `configs[].sort_order` 为可选展示排序字段，必须是非负整数；管理页拖动卡片时会写入此字段，不改变 `configs[]` 数组顺序
 - 默认示例配置里包含 `gpt-5.2 -> gpt-5.5`
 - 原因：当前 Codex API 的配置形式暂不直接支持 `gpt-5.5`，所以默认把 `gpt-5.2` 映射成 `gpt-5.5`，方便继续沿用现有配置写法
 - `/v1/messages` 优先使用 `support` 包含 `claude` 的 `apikey` 原样转发；没有可用 Claude apikey 时使用 `token` 配置项走 responses 兼容转换

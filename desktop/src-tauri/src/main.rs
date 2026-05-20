@@ -378,7 +378,7 @@ fn configured_port(runtime_dir: &Path) -> Result<u16, String> {
 }
 
 fn build_admin_url(port: u16, auth_token: Option<&str>) -> String {
-    let base = format!("http://localhost:{port}/admin/configs");
+    let base = format!("http://localhost:{port}/admin/configs/v2");
     match auth_token.filter(|token| !token.trim().is_empty()) {
         Some(token) => format!("{base}?auth_token={token}"),
         None => base,
@@ -889,7 +889,7 @@ mod tests {
     fn builds_admin_url_with_auth_token() {
         assert_eq!(
             build_admin_url(3009, Some("auth_abc")),
-            "http://localhost:3009/admin/configs?auth_token=auth_abc"
+            "http://localhost:3009/admin/configs/v2?auth_token=auth_abc"
         );
     }
 
@@ -897,7 +897,7 @@ mod tests {
     fn builds_admin_url_without_empty_auth_token() {
         assert_eq!(
             build_admin_url(3009, Some("")),
-            "http://localhost:3009/admin/configs"
+            "http://localhost:3009/admin/configs/v2"
         );
     }
 

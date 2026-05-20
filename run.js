@@ -420,7 +420,7 @@ function hasStartupLinkLogs(port) {
     return false;
   }
 
-  return fs.readFileSync(LOG_FILE, 'utf8').includes(`http://localhost:${port}/admin/configs`);
+  return fs.readFileSync(LOG_FILE, 'utf8').includes(`http://localhost:${port}/admin/configs/v2`);
 }
 
 function hasStartupLogOutput() {

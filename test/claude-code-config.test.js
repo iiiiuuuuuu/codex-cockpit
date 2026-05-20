@@ -67,6 +67,7 @@ test('parseOpenAiConfigFile accepts none and minimal reasoning_effort values', (
 test('resolveResponsesOptions normalizes configured model aliases for case-insensitive lookup', () => {
   const parsed = parseOpenAiConfigFile(JSON.stringify(createBaseConfig({
     responses: {
+      codex_speed_mode: 'fast',
       model_aliases: {
         'GPT-5.4-MINI': 'gpt-5.5',
         '  O3-MINI  ': 'gpt-5.4',
@@ -75,10 +76,20 @@ test('resolveResponsesOptions normalizes configured model aliases for case-insen
   })));
 
   assert.deepEqual(resolveResponsesOptions(parsed), {
+    codexSpeedMode: 'fast',
     modelAliases: {
       'gpt-5.4-mini': 'gpt-5.5',
       'o3-mini': 'gpt-5.4',
     },
+  });
+});
+
+test('resolveResponsesOptions defaults Codex speed mode to standard', () => {
+  const parsed = parseOpenAiConfigFile(JSON.stringify(createBaseConfig()));
+
+  assert.deepEqual(resolveResponsesOptions(parsed), {
+    codexSpeedMode: 'standard',
+    modelAliases: {},
   });
 });
 

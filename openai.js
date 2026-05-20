@@ -43,6 +43,7 @@ const {
     deleteConfigItem,
     readParsedConfigFile,
     updateConfigItem,
+    updateConfigSortOrder,
     updateConfigSettings,
     writeParsedConfigFile
 } = require('./app/config-editor');
@@ -1019,7 +1020,7 @@ function createMissingConfigResponse(res) {
 }
 
 function buildAdminPath() {
-    return `/admin/configs?auth_token=${encodeURIComponent(getConfiguredAuthToken(currentParsedConfig))}`;
+    return `/admin/configs/v2?auth_token=${encodeURIComponent(getConfiguredAuthToken(currentParsedConfig))}`;
 }
 
 function createProxyUnauthorizedResponse(res) {
@@ -1216,6 +1217,7 @@ function shouldForceResponsesStoreFalse(config, rewrittenUrl) {
 function normalizeProxyJsonBody(config, rewrittenUrl, body, responsesOptions) {
     return normalizeResponsesRequestBody(rewrittenUrl, body, {
         ...responsesOptions,
+        codexSpeedMode: config && config.type === 'token' ? responsesOptions.codexSpeedMode : null,
         forceStoreFalse: shouldForceResponsesStoreFalse(config, rewrittenUrl),
     });
 }
@@ -1672,7 +1674,9 @@ app.use('/admin', requireAdminAuthToken);
 app.use('/admin/api', express.json({ limit: '1mb' }));
 
 app.get('/admin/configs', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'config-admin.html'));
+    const queryIndex = req.originalUrl.indexOf('?');
+    const queryString = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+    res.redirect(308, `/admin/configs/v2${queryString}`);
 });
 
 app.get('/admin/configs/v2', (req, res) => {
@@ -1839,6 +1843,23 @@ app.post('/admin/api/configs', async (req, res) => {
         const statusCode = err instanceof ConfigEditorError ? 400 : 500;
         res.status(statusCode).json({
             error: statusCode === 400 ? '配置新增失败' : '配置更新失败',
+            details: err.message
+        });
+    }
+});
+
+app.post('/admin/api/configs/order', async (req, res) => {
+    try {
+        const parsed = readParsedConfigFile(CONFIG_FILE);
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const nextParsed = updateConfigSortOrder(parsed, body.ordered_indexes);
+
+        persistConfigWithoutRuntimeReload(nextParsed);
+        res.status(200).json(buildConfigAdminResponse());
+    } catch (err) {
+        const statusCode = err instanceof ConfigEditorError ? 400 : 500;
+        res.status(statusCode).json({
+            error: statusCode === 400 ? '配置排序失败' : '配置更新失败',
             details: err.message
         });
     }
