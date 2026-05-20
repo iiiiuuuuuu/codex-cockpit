@@ -138,6 +138,20 @@ function normalizeSortOrder(value) {
     return sortOrder;
 }
 
+function normalizePriceYuan(value) {
+    const normalized = typeof value === 'number' ? String(value) : normalizeString(value);
+    if (!/^\d+(\.\d{1,2})?$/.test(normalized)) {
+        throw new ConfigEditorError('配置项 price_yuan 必须是非负金额，最多保留 2 位小数');
+    }
+
+    const price = Number.parseFloat(normalized);
+    if (!Number.isFinite(price) || price < 0) {
+        throw new ConfigEditorError('配置项 price_yuan 必须是非负金额，最多保留 2 位小数');
+    }
+
+    return Number(price.toFixed(2));
+}
+
 function getEditableFields(type) {
     if (type === 'apikey') {
         return ['type', 'apikey', 'base_url', 'description', 'support'];
@@ -235,6 +249,19 @@ function normalizeConfigItem(item, existingItem = {}) {
             delete nextItem.sort_order;
         } else {
             nextItem.sort_order = normalizeSortOrder(item.sort_order);
+        }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(item, 'price_yuan')) {
+        if (item.price_yuan === null || item.price_yuan === undefined || normalizeString(item.price_yuan) === '') {
+            delete nextItem.price_yuan;
+        } else {
+            const priceYuan = normalizePriceYuan(item.price_yuan);
+            if (priceYuan > 0) {
+                nextItem.price_yuan = priceYuan;
+            } else {
+                delete nextItem.price_yuan;
+            }
         }
     }
 

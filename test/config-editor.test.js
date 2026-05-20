@@ -274,6 +274,43 @@ test('updateConfigItem normalizes sort_order', () => {
   assert.equal(next.configs[0].sort_order, 30);
 });
 
+test('updateConfigItem normalizes price_yuan and hides zero values', () => {
+  const parsed = createTokenConfig();
+
+  const priced = updateConfigItem(parsed, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    price_yuan: ' 20.5 ',
+  });
+
+  assert.equal(priced.configs[0].price_yuan, 20.5);
+
+  const cleared = updateConfigItem(priced, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    price_yuan: '0',
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(cleared.configs[0], 'price_yuan'), false);
+});
+
+test('updateConfigItem rejects invalid price_yuan', () => {
+  assert.throws(() => {
+    updateConfigItem(createTokenConfig(), 0, {
+      access_token: 'token-1',
+      account_id: 'account-1',
+      description: 'primary',
+      price_yuan: '12.345',
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /price_yuan/);
+    return true;
+  });
+});
+
 test('updateConfigSortOrder persists display order fields without moving configs', () => {
   const parsed = createTokenConfig({
     configs: [

@@ -1795,6 +1795,10 @@ app.patch('/admin/api/configs/:index', async (req, res) => {
             nextItem.alias = typeof body.alias === 'string' ? body.alias.trim() : '';
         }
 
+        if (Object.prototype.hasOwnProperty.call(body, 'price_yuan')) {
+            nextItem.price_yuan = body.price_yuan;
+        }
+
         const hasAutoSwitchDisabled = Object.prototype.hasOwnProperty.call(body, 'auto_switch_disabled');
         if (hasAutoSwitchDisabled) {
             if (typeof body.auto_switch_disabled !== 'boolean') {

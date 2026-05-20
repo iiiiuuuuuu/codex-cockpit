@@ -193,7 +193,10 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /\/admin\/api\/configs\/\$\{index\}\/refresh/);
   assert.match(html, /window\.confirm/);
   assert.match(html, /aliasModalBackdrop/);
-  assert.match(html, /编辑账号别名/);
+  assert.match(html, /编辑账号信息/);
+  assert.match(html, /id="accountPriceInput"/);
+  assert.match(html, /price_yuan/);
+  assert.match(html, /pill price/);
   assert.match(html, /只刷新此账号额度/);
   assert.match(html, /mergeSingleRefreshSnapshot/);
   assert.match(html, /api-key-note compact/);

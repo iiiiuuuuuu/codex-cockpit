@@ -67,6 +67,7 @@
 - `responses.model_aliases` 用来给 `/v1/responses` 请求里的 `model` 做别名替换，键和值都必须是非空字符串
 - `responses.model_aliases` 的键比较时忽略大小写，例如配置 `GPT-5.2` 也会匹配请求里的 `gpt-5.2`
 - `configs[].sort_order` 为可选展示排序字段，必须是非负整数；管理页拖动卡片时会写入此字段，不改变 `configs[]` 数组顺序
+- `configs[].price_yuan` 为可选金额字段，单位元，必须是非负金额且最多 2 位小数；大于 0 时管理页会展示为价格标签
 - 默认示例配置里包含 `gpt-5.2 -> gpt-5.5`
 - 原因：当前 Codex API 的配置形式暂不直接支持 `gpt-5.5`，所以默认把 `gpt-5.2` 映射成 `gpt-5.5`，方便继续沿用现有配置写法
 - `/v1/messages` 优先使用 `support` 包含 `claude` 的 `apikey` 原样转发；没有可用 Claude apikey 时使用 `token` 配置项走 responses 兼容转换

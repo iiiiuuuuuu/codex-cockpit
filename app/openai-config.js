@@ -185,6 +185,17 @@ function parseOpenAiConfigFile(raw) {
                 throw new Error('配置项 sort_order 必须是非负整数');
             }
         }
+
+        if (config.price_yuan !== undefined) {
+            const rawPriceYuan = typeof config.price_yuan === 'number' ? String(config.price_yuan) : config.price_yuan;
+            if (
+                typeof rawPriceYuan !== 'string' ||
+                !/^\d+(\.\d{1,2})?$/.test(rawPriceYuan.trim()) ||
+                !Number.isFinite(Number.parseFloat(rawPriceYuan.trim()))
+            ) {
+                throw new Error('配置项 price_yuan 必须是非负金额，最多保留 2 位小数');
+            }
+        }
     }
 
     if (parsed.apikeys !== undefined) {

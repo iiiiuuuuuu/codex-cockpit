@@ -535,21 +535,36 @@
     .pill {
       display: inline-flex;
       align-items: center;
-      min-height: 22px;
-      padding: 0 7px;
-      border-radius: 999px;
+      min-height: 19px;
+      padding: 0 6px;
+      border: 1px solid rgba(213, 223, 237, 0.9);
+      border-radius: 7px;
       color: #fff;
-      font-size: 9px;
-      font-weight: 900;
-      letter-spacing: 0.03em;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 780;
+      letter-spacing: 0;
       white-space: nowrap;
     }
 
     .pill.current { background: var(--green); letter-spacing: 0; }
     .pill.plan,
     .pill.team {
-      color: #42526a;
-      background: #eef2f7;
+      color: #4e5f78;
+      background: #f7f9fc;
+    }
+    .pill.price {
+      min-width: 47px;
+      justify-content: center;
+      min-height: 19px;
+      padding: 0 7px;
+      border-color: #efcf83;
+      color: #755000;
+      background: #fffaf0;
+      letter-spacing: 0;
+      font-size: 11px;
+      font-weight: 720;
+      font-variant-numeric: tabular-nums;
     }
     .pill.bad { background: #f7e3e5; color: #b4232b; }
 
@@ -2014,10 +2029,10 @@
     <div class="alias-modal" role="dialog" aria-modal="true" aria-labelledby="aliasModalTitle">
       <div class="alias-modal-head">
         <div>
-          <h3 class="alias-modal-title" id="aliasModalTitle">编辑账号别名</h3>
+          <h3 class="alias-modal-title" id="aliasModalTitle">编辑账号信息</h3>
           <p class="alias-modal-note" id="aliasModalNote">给当前账号起一个更好认的名字。</p>
         </div>
-        <button class="icon-button" type="button" id="aliasModalCloseButton" aria-label="关闭别名编辑">
+        <button class="icon-button" type="button" id="aliasModalCloseButton" aria-label="关闭账号信息编辑">
           <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
         </button>
       </div>
@@ -2025,6 +2040,10 @@
         <div class="field">
           <label class="field-label" for="aliasInput">别名</label>
           <input id="aliasInput" class="text-input" type="text" placeholder="例如：主账号 / 备用账号">
+        </div>
+        <div class="field">
+          <label class="field-label" for="accountPriceInput">金额（元）</label>
+          <input id="accountPriceInput" class="text-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="例如：20">
         </div>
         <div class="field">
           <label class="field-label" id="aliasSourceLabel" for="aliasSourceValue">邮箱账号</label>
@@ -2037,7 +2056,7 @@
       </div>
       <div class="alias-modal-actions">
         <button class="command" type="button" id="aliasModalCancelButton">取消</button>
-        <button class="command primary" type="button" id="aliasModalSaveButton">保存别名</button>
+        <button class="command primary" type="button" id="aliasModalSaveButton">保存</button>
       </div>
     </div>
   </div>
@@ -2135,6 +2154,7 @@
     const aliasModalBackdrop = document.getElementById('aliasModalBackdrop');
     const aliasModalNote = document.getElementById('aliasModalNote');
     const aliasInput = document.getElementById('aliasInput');
+    const accountPriceInput = document.getElementById('accountPriceInput');
     const aliasSourceLabel = document.getElementById('aliasSourceLabel');
     const aliasSourceValue = document.getElementById('aliasSourceValue');
     const aliasIdLabel = document.getElementById('aliasIdLabel');
@@ -2294,6 +2314,21 @@
       return Boolean(configItem && configItem.auto_switch_disabled === true);
     }
 
+    function getAccountPriceYuan(item) {
+      const configItem = item && item.item ? item.item : item;
+      const price = Number(configItem?.price_yuan);
+      return Number.isFinite(price) && price > 0 ? price : 0;
+    }
+
+    function formatAccountPriceYuan(item) {
+      const price = getAccountPriceYuan(item);
+      if (price <= 0) {
+        return '';
+      }
+
+      return Number.isInteger(price) ? `¥${price}` : `¥${price.toFixed(2)}`;
+    }
+
     function maskSecret(value) {
       const text = String(value || '').trim();
       if (!text) {
@@ -2323,6 +2358,7 @@
           idLabel: 'API Key',
           idValue: maskSecret(configItem.apikey),
           aliasValue: configItem.alias || configItem.description || '',
+          priceValue: getAccountPriceYuan(item) || '',
         };
       }
 
@@ -2333,6 +2369,7 @@
         idLabel: '账号 ID',
         idValue: configItem.account_id || '未设置',
         aliasValue: configItem.alias || '',
+        priceValue: getAccountPriceYuan(item) || '',
       };
     }
 
@@ -3616,6 +3653,7 @@
       const primaryPercent = getPrimaryPercent(item.runtime);
       const weeklyPercent = getWeeklyPercent(item.runtime);
       const planLabel = getPlanLabel(item);
+      const priceLabel = formatAccountPriceYuan(item);
       const errorText = getRuntimeError(item.runtime, item);
       const healthText = getHealthText(item);
       const autoSwitchDisabled = isAutoSwitchDisabled(item);
@@ -3677,6 +3715,7 @@
               </div>
               <div class="pill-row">
                 <span class="pill ${planClass}">${escapeHtml(planLabel)}</span>
+                ${priceLabel ? `<span class="pill price">${escapeHtml(priceLabel)}</span>` : ''}
               </div>
             </div>
           </div>
@@ -3948,6 +3987,7 @@
       aliasModalBackdrop.hidden = true;
       editingAliasIndex = null;
       aliasInput.value = '';
+      accountPriceInput.value = '';
     }
 
     function closeRoutingPreferenceModal() {
@@ -3982,6 +4022,7 @@
       aliasIdLabel.textContent = details.idLabel;
       aliasIdValue.textContent = details.idValue;
       aliasInput.value = details.aliasValue;
+      accountPriceInput.value = details.priceValue === '' ? '' : String(details.priceValue);
       aliasModalBackdrop.hidden = false;
       aliasModalBackdrop.classList.add('show');
       window.setTimeout(() => {
@@ -3995,17 +4036,24 @@
         return;
       }
 
+      const rawPrice = accountPriceInput.value.trim();
+      if (rawPrice && !/^\d+(\.\d{1,2})?$/.test(rawPrice)) {
+        setMessage('error', '金额必须是非负数字，最多保留 2 位小数。');
+        return;
+      }
+
       aliasModalSaveButton.disabled = true;
       try {
         snapshot = await requestJson(`/admin/api/configs/${editingAliasIndex}`, {
           method: 'PATCH',
           body: JSON.stringify({
             alias: aliasInput.value.trim(),
+            price_yuan: rawPrice ? Number(rawPrice) : null,
           }),
         });
         renderAll();
         closeAliasModal();
-        setMessage('info', '别名已保存。');
+        setMessage('info', '账号信息已保存。');
       } catch (error) {
         setMessage('error', error.message);
       } finally {
