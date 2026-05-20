@@ -1809,7 +1809,7 @@
         <section class="panel">
           <h3 class="panel-title" id="apiKeyStatusTitle">入口 apikey</h3>
           <div class="info-box">
-            <div>入口 apikey 保护 Airouter 本地代理入口，不是 OpenAI、Codex 或 Claude 的上游 API Key，也不会转发给上游。</div>
+            <div>入口 apikey 保护 ai-cockpit 本地代理入口，不是 OpenAI、Codex 或 Claude 的上游 API Key，也不会转发给上游。</div>
             <div>客户端请求 <code>/v1/*</code> 时，带上任意一个已配置的 key 即可；可以用 <code>Authorization: Bearer &lt;apikey&gt;</code>，也可以用 <code>x-api-key: &lt;apikey&gt;</code>。</div>
             <div>配置多个 key 时，任意一个匹配都能访问，适合不同设备或临时授权共用；删除某个 key 只会影响使用它的客户端。列表为空则不校验。</div>
           </div>
@@ -1821,7 +1821,7 @@
         <div class="section-head">
           <div>
             <h2 class="page-title">代理入口</h2>
-            <p class="page-note">配置 Airouter 对外服务端口，以及访问上游时借用的本机 VPN/代理软件端口。</p>
+            <p class="page-note">配置 ai-cockpit 对外服务端口，以及访问上游时借用的本机 VPN/代理软件端口。</p>
           </div>
         </div>
 
@@ -1831,12 +1831,12 @@
             <div class="field">
               <label class="field-label" for="servicePortInput">服务端口</label>
               <input id="servicePortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="3009">
-              <p class="field-hint">Airouter 在你本机监听的对外服务端口。Codex、OpenAI SDK 或其他客户端会连到这个端口，例如把 `http://localhost:3009/v1` 填到 Base URL。</p>
+              <p class="field-hint">ai-cockpit 在你本机监听的对外服务端口。Codex、OpenAI SDK 或其他客户端会连到这个端口，例如把 `http://localhost:3009/v1` 填到 Base URL。</p>
             </div>
             <div class="field">
               <label class="field-label" for="proxyPortInput">代理端口</label>
               <input id="proxyPortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="留空不用代理">
-              <p class="field-hint">这里填写你本地 VPN/代理软件正在监听的端口，例如 Clash、Surge、V2RayN 常见的 7890。填了以后，Airouter 访问上游时会通过这个代理出网；留空则直连。</p>
+              <p class="field-hint">这里填写你本地 VPN/代理软件正在监听的端口，例如 Clash、Surge、V2RayN 常见的 7890。填了以后，ai-cockpit 访问上游时会通过这个代理出网；留空则直连。</p>
             </div>
             <div class="field full">
               <div class="endpoint-card">
@@ -3593,7 +3593,7 @@
       proxyV1Url.textContent = info.portPendingRestart ? info.configuredV1Url : info.v1Url;
 
       const proxyText = info.proxyPort
-        ? `Airouter 访问上游时会通过本机代理端口 ${info.proxyPort} 出网。`
+        ? `ai-cockpit 访问上游时会通过本机代理端口 ${info.proxyPort} 出网。`
         : '未配置上游代理端口';
       const restartText = info.portPendingRestart
         ? `正在切换到 ${info.configuredPort}；当前连接仍在 ${info.runtimePort}。`

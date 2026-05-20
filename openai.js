@@ -1847,7 +1847,7 @@ app.post('/admin/api/configs', async (req, res) => {
 app.post('/admin/api/apikeys', async (req, res) => {
     try {
         const parsed = readParsedConfigFile(CONFIG_FILE);
-        const generatedApiKey = generateRandomSecret('sk-airouter-');
+        const generatedApiKey = generateRandomSecret('sk-ai-cockpit-');
         const nextParsed = updateConfigSettings(parsed, {
             apikeys: [...getConfiguredApiKeys(parsed), generatedApiKey]
         });

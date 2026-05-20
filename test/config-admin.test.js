@@ -144,7 +144,7 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /\/admin\/api\/configs'/);
   assert.match(html, /id="addApiKeyButton"/);
   assert.match(html, /\/admin\/api\/apikeys/);
-  assert.match(html, /入口 apikey 保护 Airouter 本地代理入口/);
+  assert.match(html, /入口 apikey 保护 ai-cockpit 本地代理入口/);
   assert.match(html, /Authorization: Bearer &lt;apikey&gt;/);
   assert.match(html, /x-api-key: &lt;apikey&gt;/);
   assert.match(html, /任意一个匹配都能访问/);
@@ -159,7 +159,7 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /id="logsOutput"/);
   assert.match(html, /\/admin\/api\/settings/);
   assert.match(html, /\/admin\/api\/logs/);
-  assert.match(html, /Airouter 在你本机监听的对外服务端口/);
+  assert.match(html, /ai-cockpit 在你本机监听的对外服务端口/);
   assert.match(html, /Codex、OpenAI SDK 或其他客户端/);
   assert.match(html, /本地 VPN\/代理软件正在监听的端口/);
   assert.match(html, /留空则直连/);
@@ -490,7 +490,7 @@ test('getActiveConfigLabel returns default routing when no config is manually ac
 test('buildAdminStatusSummary summarizes apikeys, configs, active config, and health', () => {
   assert.deepEqual(
     buildAdminStatusSummary({
-      apikeys: ['sk-airouter-one', 'sk-airouter-two'],
+      apikeys: ['sk-ai-cockpit-one', 'sk-ai-cockpit-two'],
       configs: [
         {
           index: 0,

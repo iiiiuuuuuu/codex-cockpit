@@ -1,178 +1,47 @@
-# Airouter
+# ai-cockpit
 
-Airouter 是一个本地 API 转发工具。
+ai-cockpit 是一个运行在本机的 AI API 路由器。它把 ChatGPT/Codex 登录态、OpenAI 兼容 API Key、Claude Messages 兼容 API Key 统一接到一个本地地址上，让 Codex、Claude Code、CC Switch 或其他 OpenAI/Anthropic 兼容客户端都可以通过 ai-cockpit 访问上游。
 
-简单说：你把 ChatGPT/Codex 账号、第三方 OpenAI 兼容 API、Claude Messages 兼容 API 配到 Airouter 里，然后让 Codex、Claude Code、cc-switch 等工具统一访问 Airouter。Airouter 会帮你转发请求、切换可用账号，并提供一个网页管理界面。
-
-它适合这些场景：
-
-- 想让本地工具使用 ChatGPT Codex token 账号。
-- 想把多个账号放在一起，额度低或不可用时自动切换。
-- 想把 Claude Code 的 Messages API 请求转到可用的 GPT 或 Claude 兼容上游。
-- 想统一用一个本地地址，例如 `http://localhost:3009/v1`，管理不同上游。
-
-## 推荐用法：下载桌面版
-
-如果你只是想使用，不想折腾命令行，推荐下载桌面版。
-
-打开 [GitHub Releases](https://github.com/ccq18/airouter/releases) 下载最新版本：
-
-- macOS：下载 `Airouter_*.app.zip`，解压后打开 `Airouter.app`。
-- Windows：下载 `Airouter_*.exe`，安装后打开 Airouter。
-
-桌面版会自动启动本地服务，并直接打开配置页面。一般不需要手动点“启动”或“停止”，跟普通 App 一样打开就能用，退出 App 服务也会一起关闭。
-
-## 第一次配置
-
-打开 Airouter 后，会进入管理控制台。你主要需要做三件事：
-
-1. 添加一个或多个上游账号。
-2. 按需新增入口 `apikey`。
-3. 复制代理访问地址给 Codex、Claude Code 或 cc-switch 使用。
-
-![Airouter 管理控制台](docs/img/config_account.png)
-
-管理页面里会显示类似这样的地址：
+默认本地入口是：
 
 ```text
-http://localhost:3009/v1
+http://127.0.0.1:3009/v1
 ```
 
-常用接口是：
+常用接口：
 
 ```text
-http://localhost:3009/v1/responses
-http://localhost:3009/v1/messages
+POST http://127.0.0.1:3009/v1/responses
+POST http://127.0.0.1:3009/v1/messages
+GET  http://127.0.0.1:3009/health
 ```
 
-如果页面里配置了入口 `apikey`，调用 Airouter 时需要带上：
+## ai-cockpit 可以做什么
 
-```http
-Authorization: Bearer sk-airouter-xxxx
-```
+- 把 ChatGPT/Codex 账号登录态转成 OpenAI Responses 风格的本地代理入口。
+- 接入任意 OpenAI 兼容 `/v1/*` 上游，例如第三方模型网关。
+- 接入 Claude Messages 兼容上游，并把 `/v1/messages` 原样转发过去。
+- 在多个 token 账号之间做额度检查、可用性判断和自动切换。
+- 在 token 账号不可用时使用 API Key 上游兜底。
+- 提供网页管理控制台，用来新增账号、查看额度、切换账号、配置入口 apikey、调整端口和模型别名。
 
-如果入口 `apikey` 列表为空，请求不会校验 `apikey`，本机直接可访问。
+路由规则可以简单理解为：
 
-## 添加账号
+- `/v1/*`：token 配置会转到 ChatGPT Codex backend-api；`support` 包含 `gpt` 的 API Key 配置会直连它自己的 `base_url`。
+- `/v1/responses`：支持 Responses 请求，并对 token 账号的部分额度类错误做自动切号。
+- `/v1/messages`：优先使用 `support` 包含 `claude` 的 API Key 原样转发；没有可用 Claude 上游时，会把 Claude Messages 请求转换到 token 的 Responses 链路。
+- `/wham/*`：token 配置会转到 ChatGPT wham backend-api；API Key 配置会直连它自己的 `base_url`。
 
-管理页的“新增配置项”支持两类上游。
+## 命令行启动
 
-### 1. ChatGPT/Codex 登录态
-
-适合用 ChatGPT/Codex 账号额度。
-
-你需要粘贴登录态 JSON。建议这样操作：
-
-1. 用浏览器隐私模式或无痕窗口登录 ChatGPT。
-2. 获取登录态 JSON。
-3. 粘贴到 Airouter。如果 JSON 里带有跳转链接或 redirect 信息，请保留原样，不要删字段。
-4. 粘贴后不要退出这个 ChatGPT 登录，否则 token 可能会失效。
-
-如果遇到类似下面的错误：
-
-```text
-401 Unauthorized
-token_revoked
-```
-
-通常表示登录态已经失效，需要重新获取并粘贴新的登录态。
-
-### 2. 第三方 API Key
-
-适合接入 OpenAI 兼容接口或 Claude Messages 兼容接口。
-
-常见填写方式：
-
-- `base_url`：上游地址，通常写到 `/v1`，例如 `https://api.example.com/v1`。
-- `apikey`：上游的 API Key。
-- `support`：支持类型。
-
-`support` 可以这样理解：
-
-- `gpt`：走 OpenAI 兼容接口，例如 `/v1/responses`。
-- `claude`：走 Claude Messages 接口，例如 `/v1/messages`，请求体会尽量原样转发。
-- 同时支持就填 `["gpt", "claude"]`。
-
-## 账号切换规则
-
-Airouter 会优先使用 ChatGPT/Codex token 账号。
-
-大致规则是：
-
-- token 账号可用时，优先走 token。
-- token 账号额度低或不可用时，自动切到下一个可用账号。
-- 所有 token 都不可用时，才会使用第三方 API Key。
-- token 后面恢复可用后，会重新优先使用 token。
-- `/v1/messages` 会优先找支持 `claude` 的 API Key；没有可用 Claude 上游时，再走兼容转换。
-
-你不需要手动记住每个账号状态，管理页会展示当前运行态，也可以手动切换或删除配置。
-
-## 用 curl 测试
-
-没有配置入口 `apikey` 时：
+也可以直接在仓库里运行 Node.js 版本：
 
 ```bash
-curl http://127.0.0.1:3009/v1/responses \
-  -H "Content-Type: application/json" \
-  -d '{"model":"gpt-5.4","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}'
-```
-
-配置了入口 `apikey` 时：
-
-```bash
-curl http://127.0.0.1:3009/v1/responses \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <你的 airouter apikey>" \
-  -d '{"model":"gpt-5.4","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}'
-```
-
-如果返回了正常内容，说明 Airouter 已经能工作。
-
-## 配合 cc-switch 使用
-
-推荐使用 [cc-switch](https://github.com/farion1231/cc-switch) 管理本地工具配置。
-
-在 cc-switch 里把 API 地址填成 Airouter 的代理地址即可：
-
-```text
-http://localhost:3009/v1
-```
-
-如果 Airouter 配了入口 `apikey`，cc-switch 里也填同一个 `apikey`；如果没配置入口 `apikey`，可以留空或随便填。
-
-示例：
-
-![cc-switch Codex 配置](docs/img/ccs_codex.png)
-
-![cc-switch Claude 配置](docs/img/ccs_claude.png)
-
-## 命令行运行
-
-不使用桌面版，也可以直接用 Node.js 运行。
-
-要求：本机已安装 Node.js。
-
-```bash
-git clone git@github.com:ccq18/airouter.git
-cd airouter
+git clone git@github.com:iiiiuuuuuu/ai-cockpit.git
+cd ai-cockpit
 npm install
 npm start
 ```
-
-第一次启动时，如果没有 `openai.json`，会进入配置引导：
-
-- 是否启用本地代理端口。
-- 代理端口号，默认 `7890`。
-- 服务端口，默认 `3009`。
-- 是否生成入口 `apikey`。
-
-启动后，终端会打印管理页面地址，类似：
-
-```text
-http://127.0.0.1:3009/admin/configs?auth_token=auth_xxx
-```
-
-复制这个地址到浏览器打开即可。
 
 常用命令：
 
@@ -180,36 +49,154 @@ http://127.0.0.1:3009/admin/configs?auth_token=auth_xxx
 npm start        # 启动服务
 npm run stop     # 停止服务
 npm run restart  # 重启服务
-npm run logs     # 查看日志
+npm run logs     # 查看最近日志
+npm test         # 运行测试
 ```
 
-## 配置文件在哪里
+第一次启动时，如果项目根目录没有 `openai.json`，会进入配置引导：
 
-命令行版本主要使用项目根目录下的：
+1. 是否启用本地代理端口，默认代理端口是 `7890`。
+2. 是否启用入口 `apikey` 校验。
+3. 生成或写入基础配置。
+
+启动成功后，日志会打印管理后台地址，类似：
 
 ```text
-openai.json
+http://127.0.0.1:3009/admin/configs?auth_token=auth_xxx
 ```
 
-桌面版会把运行资源放到系统应用数据目录里，并保留你的 `openai.json`。升级 App 时，程序代码会更新，但你的配置不会被覆盖。
+管理后台必须带正确的 `auth_token` 访问，不要手动删掉 URL 后面的参数。
 
-桌面版首次打开时，如果运行目录里还没有 `openai.json`，会先停在初始配置引导页。完成服务端口、本地代理端口和入口 `apikey` 选项后，应用会写入配置文件，再启动本地服务并进入管理页面。
+## 第一次配置
 
-`openai.json.example` 是配置模板，可以作为参考。
+打开管理控制台后，通常按这个顺序配置：
 
-一个简化示例：
+1. 在“服务设置”里确认服务端口和本地代理端口。
+2. 在“访问控制”里决定是否启用入口 `apikey`。
+3. 在“新增配置项”里添加一个或多个上游账号。
+4. 用页面里的“测试请求”或下面的 `curl` 验证代理是否可用。
+5. 把本地入口地址配置到 Codex、Claude Code 或 CC Switch。
+
+![ai-cockpit 管理控制台](docs/img/config_account.png)
+
+### 服务端口和代理端口
+
+- 服务端口：ai-cockpit 对客户端监听的端口，默认 `3009`。客户端通常填 `http://127.0.0.1:3009/v1`。
+- 代理端口：ai-cockpit 访问上游时使用的本机代理端口，例如 Clash、Surge、V2RayN 常见的 `7890`。留空则直连。
+
+### 入口 apikey
+
+顶层 `apikeys` 是 ai-cockpit 的入口鉴权密钥，不是上游 API Key。
+
+- `apikeys` 为空：本机客户端访问 ai-cockpit 时不校验 key。
+- `apikeys` 非空：请求必须携带其中一个 key。
+
+支持两种请求头：
+
+```http
+Authorization: Bearer <你的入口 apikey>
+```
+
+```http
+x-api-key: <你的入口 apikey>
+```
+
+## 上游账号类型
+
+ai-cockpit 支持两类配置项，写在 `openai.json` 的 `configs[]` 里，也可以直接通过管理页新增。
+
+### 1. ChatGPT/Codex token
+
+适合使用 ChatGPT/Codex 账号额度。管理页支持直接粘贴完整 AuthSession JSON，会自动提取：
+
+- `accessToken` -> `access_token`
+- `refreshToken` 或相关字段 -> `refresh_token`
+- `account.id` -> `account_id`
+- `user.email` -> `description`
+
+最小配置：
 
 ```json
 {
-  "apikeys": ["sk-airouter-xxxx"],
+  "access_token": "chatgpt-access-token",
+  "refresh_token": "chatgpt-refresh-token",
+  "account_id": "account-id",
+  "description": "your-email@example.com"
+}
+```
+
+获取方式可以参考管理页提示：登录 ChatGPT 后打开 `https://chatgpt.com/api/auth/session`，复制完整 JSON 粘贴到 ai-cockpit。粘贴后不要退出对应 ChatGPT 登录态，否则 token 可能失效。
+
+如果请求返回 `401 Unauthorized`、`token_revoked` 或管理页显示 token 失效，重新获取登录态并更新配置即可。
+
+### 2. API Key 上游
+
+适合接入 OpenAI 兼容接口、Claude Messages 兼容接口或自建网关。
+
+```json
+{
+  "type": "apikey",
+  "base_url": "https://api.example.com/v1",
+  "apikey": "sk-xxx",
+  "support": ["gpt"],
+  "description": "OpenAI compatible provider"
+}
+```
+
+字段说明：
+
+- `type`：固定为 `apikey`。
+- `base_url`：上游根地址，通常写到 `/v1`，例如 `https://api.example.com/v1`。
+- `apikey`：访问上游时使用的 API Key。
+- `support`：能力列表，只支持 `gpt` 和 `claude`。
+- `probe_model`：可选，用来指定 API Key 可用性探测模型。
+
+`support` 的含义：
+
+- `["gpt"]`：参与 `/v1/*` OpenAI 兼容链路，包括 `/v1/responses`。
+- `["claude"]`：参与 `/v1/messages` Claude Messages 原样转发。
+- `["gpt", "claude"]`：两条链路都参与。
+
+只支持 Claude Messages 的上游可以这样写：
+
+```json
+{
+  "type": "apikey",
+  "base_url": "https://claude.example.com/v1",
+  "apikey": "sk-xxx",
+  "support": ["claude"],
+  "description": "Claude Messages provider"
+}
+```
+
+## 配置文件示例
+
+命令行版本默认读取项目根目录的 `openai.json`。
+
+`openai.json.example` 是基础模板，一个完整示例：
+
+```json
+{
+  "apikeys": ["sk-ai-cockpit-xxxx"],
   "auth_token": "auth_xxxx",
   "port": 3009,
   "proxy_port": 7890,
+  "routing_preference": "token_first",
+  "claude_code": {
+    "model": "gpt-5.4",
+    "reasoning_effort": "high"
+  },
+  "responses": {
+    "model_aliases": {
+      "gpt-5.2": "gpt-5.5"
+    }
+  },
   "configs": [
     {
       "access_token": "chatgpt-access-token",
+      "refresh_token": "chatgpt-refresh-token",
       "account_id": "account-id",
-      "description": "codex token account"
+      "description": "Codex token account"
     },
     {
       "type": "apikey",
@@ -229,70 +216,200 @@ openai.json
 }
 ```
 
-## 端口和代理
+补充说明：
 
-管理页可以配置两个端口：
+- `auth_token` 保护管理后台。
+- `apikeys` 保护本地代理入口。
+- `routing_preference` 支持 `token_first`、`apikey_first`、`token_only`、`apikey_only`，默认 `token_first`。
+- `claude_code.model` 和 `claude_code.reasoning_effort` 只影响 `/v1/messages` 走 token 兼容转换时的实际 Responses 请求。
+- `responses.model_aliases` 用来给 `/v1/responses` 的 `model` 做别名替换，匹配时忽略大小写。
 
-- 服务端口：Airouter 自己监听的端口，默认 `3009`。
-- 代理端口：Airouter 访问上游时使用的本地代理端口，常见是 `7890`。
+更详细字段说明见 [docs/config-item-reference.md](docs/config-item-reference.md)。
 
-端口保存后会立即生效。服务端口变化时，页面会自动跳转到新的本地地址。
+## 账号切换规则
+
+默认 `routing_preference` 是 `token_first`：
+
+1. token 账号可用时优先使用 token。
+2. token 账号每分钟检查额度和可用性。
+3. 主额度低于 `3%` 或周额度不高于 `1%` 时，会标记为不可用并切到下一个账号。
+4. `/v1/responses` 遇到部分额度类错误时，会自动切号并重放一次请求。
+5. 所有 token 都不可用时，才使用 API Key 上游。
+6. token 后续恢复可用后，会重新优先使用 token。
+
+API Key 配置不参与 Codex 额度轮询；点击管理页刷新时，会做可用性探测。
+
+## 验证代理
+
+没有配置入口 `apikey` 时：
+
+```bash
+curl http://127.0.0.1:3009/v1/responses \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-5.4","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}'
+```
+
+配置了入口 `apikey` 时：
+
+```bash
+curl http://127.0.0.1:3009/v1/responses \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <你的入口 apikey>" \
+  -d '{"model":"gpt-5.4","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}'
+```
+
+验证 Claude Messages 入口：
+
+```bash
+curl http://127.0.0.1:3009/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <你的入口 apikey>" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{"model":"claude-sonnet-4-5","max_tokens":128,"messages":[{"role":"user","content":"hello"}]}'
+```
+
+如果没有启用入口 `apikey`，删除 `Authorization` 这一行即可。
+
+## 配合 Codex 使用
+
+Codex 走 OpenAI Responses 风格入口，所以 Base URL 填：
+
+```text
+http://127.0.0.1:3009/v1
+```
+
+直接配置 `~/.codex/config.toml` 时，可以新增一个 provider：
+
+```toml
+model_provider = "ai_cockpit"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+
+[model_providers.ai_cockpit]
+name = "ai-cockpit"
+base_url = "http://127.0.0.1:3009/v1"
+wire_api = "responses"
+requires_openai_auth = true
+```
+
+如果 ai-cockpit 开启了入口 `apikey`，改成环境变量传 key：
+
+```toml
+model_provider = "ai_cockpit"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+
+[model_providers.ai_cockpit]
+name = "ai-cockpit"
+base_url = "http://127.0.0.1:3009/v1"
+wire_api = "responses"
+env_key = "AI_COCKPIT_API_KEY"
+```
+
+然后启动 Codex 前设置：
+
+```bash
+export AI_COCKPIT_API_KEY="sk-ai-cockpit-xxxx"
+codex
+```
+
+也可以临时指定：
+
+```bash
+AI_COCKPIT_API_KEY="sk-ai-cockpit-xxxx" codex -c model_provider=\"ai_cockpit\"
+```
+
+## 配合 Claude Code 使用
+
+Claude Code 走 Claude Messages 入口。配置时 Base URL 不要写 `/v1`，填到服务根地址即可：
+
+```bash
+export ANTHROPIC_BASE_URL="http://127.0.0.1:3009"
+export ANTHROPIC_AUTH_TOKEN="sk-ai-cockpit-xxxx"
+claude
+```
+
+`ANTHROPIC_AUTH_TOKEN` 会以 `Authorization: Bearer ...` 发送，正好匹配 ai-cockpit 的入口 `apikey` 校验。
+
+如果没有启用入口 `apikey`，可以随便给一个占位值：
+
+```bash
+export ANTHROPIC_BASE_URL="http://127.0.0.1:3009"
+export ANTHROPIC_AUTH_TOKEN="ai-cockpit-local"
+claude
+```
+
+Claude Code 请求 `/v1/messages` 时，ai-cockpit 会按下面顺序处理：
+
+1. 先找 `support` 包含 `claude` 的 API Key 上游，找到就原样转发。
+2. 没有可用 Claude 上游时，把 Claude Messages 请求转换成 Responses 请求，走 token 账号。
+
+如果你走 token 兼容转换链路，可以用 `openai.json` 的 `claude_code` 配置覆盖实际使用的 GPT 模型和推理强度。
+
+## 配合 CC Switch 使用
+
+CC Switch 适合同时管理 Codex、Claude Code 等工具的本地配置。可以在 CC Switch 里新增一个 Local/Custom Provider，统一指向 ai-cockpit。
+
+Codex/OpenAI 类型：
+
+```text
+Base URL: http://127.0.0.1:3009/v1
+API Key:  sk-ai-cockpit-xxxx
+```
+
+Claude/Anthropic 类型：
+
+```text
+Base URL: http://127.0.0.1:3009
+API Key:  sk-ai-cockpit-xxxx
+```
+
+有些 CC Switch 版本的 Claude 配置项会要求填写到 `/v1`。如果它内部不会再追加 `/v1/messages`，可以填 `http://127.0.0.1:3009/v1`；如果出现 `/v1/v1/messages` 或 404，就改回 `http://127.0.0.1:3009`。
+
+示例截图：
+
+![CC Switch Codex 配置](docs/img/ccs_codex.png)
+
+![CC Switch Claude 配置](docs/img/ccs_claude.png)
 
 ## 常见问题
 
-### 1. 管理页面打不开
+### 管理页面打不开
 
-先确认服务是否启动。
-
-命令行版本可以查看日志：
+先确认服务是否启动：
 
 ```bash
 npm run logs
 ```
 
-桌面版可以重新打开 App。如果端口被旧进程占用，桌面版会尝试清理占用端口的旧进程。
+确认服务端口没有被其他进程占用；如果是通过封装应用启动，可以退出后重新打开。
 
-### 2. 提示 auth_token 无效
+### 提示 auth_token 无效
 
-管理页面地址里的 `auth_token` 不对。
+说明管理页 URL 里的 `auth_token` 不对。使用启动日志里打印的管理地址重新进入。
 
-请使用启动日志或桌面 App 自动打开的管理地址，不要手动删掉 URL 后面的 `auth_token`。
+### 新增 API Key 后客户端该填哪个 key
 
-### 3. 请求提示 401 或 token_revoked
+客户端填入口 `apikeys` 里的 key。上游 API Key 只填在 ai-cockpit 配置项里，不直接给 Codex 或 Claude Code。
 
-通常是 ChatGPT 登录态失效。
+### 模型列表获取失败
 
-重新在隐私模式登录 ChatGPT，获取新的登录态 JSON，再粘贴到 Airouter。粘贴后不要退出登录。
+ai-cockpit 主要代理 `/v1/responses` 和 `/v1/messages` 这类实际请求。部分客户端会先请求模型列表，如果上游或当前链路不支持模型列表，可能会显示获取失败。通常可以手动填写模型名继续使用，例如 Codex 用 `gpt-5.5`，Claude Code 用它自己的模型名或通过 `claude_code.model` 做转换。
 
-### 4. 新增 API Key 后怎么用
+### token 失效或 token_revoked
 
-管理页里“访问控制”的 `apikey` 是 Airouter 的入口钥匙，不是上游钥匙。
-
-也就是说：
-
-- 上游 API Key：填在“新增配置项”里，Airouter 用它访问上游。
-- 入口 API Key：填在客户端里，客户端用它访问 Airouter。
-
-### 5. Windows 和 macOS 会自动打包吗
-
-会。
-
-仓库推送 `v*` tag 后，GitHub Actions 会自动构建：
-
-- macOS `.app.zip`
-- Windows `.exe` 安装包
-
-构建成功后会自动上传到 GitHub Releases。
+重新登录 ChatGPT，打开 `https://chatgpt.com/api/auth/session`，复制新的 AuthSession JSON 到管理页。更新后不要退出这个登录态。
 
 ## 开发者信息
 
-本项目的桌面版基于 Tauri，只做外层包装，不侵入现有 Node.js 服务逻辑。
+项目包含一个 Tauri 外壳，只做本地服务的启动与窗口包装，不侵入现有 Node.js 服务逻辑。
 
-常用开发命令：
+Tauri 外壳开发：
 
 ```bash
 cd desktop
 npm install
+npm run prepare
 npm run dev
 ```
 
@@ -300,7 +417,14 @@ npm run dev
 
 ```bash
 cd desktop
-npm run build:macos
+npm run build
 ```
 
-Windows 安装包建议通过 GitHub Actions 在 Windows runner 上构建。
+只构建当前平台：
+
+```bash
+npm run build:macos
+npm run build:windows
+```
+
+推送 `v*` tag 后，GitHub Actions 会构建 macOS 和 Windows 安装包并上传到 GitHub Releases。

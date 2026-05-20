@@ -935,7 +935,7 @@ mod tests {
             proxy_enabled: true,
             proxy_port: Some(Value::from("8899")),
             apikey_enabled: true,
-            apikey: Some("sk-airouter-test".to_string()),
+            apikey: Some("sk-ai-cockpit-test".to_string()),
         };
 
         let config = build_initial_config_value(
@@ -949,7 +949,7 @@ mod tests {
         assert_eq!(config.get("proxy_port"), Some(&Value::from(8899)));
         assert_eq!(
             config.get("apikeys"),
-            Some(&Value::from(vec!["sk-airouter-test"]))
+            Some(&Value::from(vec!["sk-ai-cockpit-test"]))
         );
         assert_eq!(config.get("configs"), Some(&Value::from(Vec::<Value>::new())));
     }
@@ -961,7 +961,7 @@ mod tests {
             proxy_enabled: false,
             proxy_port: Some(Value::from("8899")),
             apikey_enabled: false,
-            apikey: Some("sk-airouter-unused".to_string()),
+            apikey: Some("sk-ai-cockpit-unused".to_string()),
         };
 
         let config = build_initial_config_value(

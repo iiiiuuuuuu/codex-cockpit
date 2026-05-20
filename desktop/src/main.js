@@ -73,7 +73,7 @@
   function generateApiKey() {
     const bytes = new Uint8Array(24);
     window.crypto.getRandomValues(bytes);
-    return `sk-airouter-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`;
+    return `sk-ai-cockpit-${Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')}`;
   }
 
   function updateSetupControls() {

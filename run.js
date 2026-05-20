@@ -219,7 +219,7 @@ async function runConfigWizard() {
 
     const nextConfig = {
       ...templateConfig,
-      apikeys: enableApiKey ? [generateRandomSecret('sk-airouter-')] : [],
+      apikeys: enableApiKey ? [generateRandomSecret('sk-ai-cockpit-')] : [],
     };
     delete nextConfig.type;
 

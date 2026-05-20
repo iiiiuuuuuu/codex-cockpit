@@ -349,7 +349,7 @@ test('start creates openai.json from the example template and continues startup 
   const savedConfig = JSON.parse(fs.readFileSync(path.join(workspace.cwd, 'openai.json'), 'utf8'));
   assert.equal(savedConfig.proxy_port, 8899);
   assert.equal(savedConfig.apikeys.length, 1);
-  assert.match(savedConfig.apikeys[0], /^sk-airouter-/);
+  assert.match(savedConfig.apikeys[0], /^sk-ai-cockpit-/);
 
   const stopResult = runCommand(['stop'], workspace);
   assert.equal(stopResult.status, 0, stopResult.stderr);
