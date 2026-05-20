@@ -2,8 +2,13 @@ const CHATGPT_BASE_URL = 'https://chatgpt.com';
 const CODEX_API_BASE_PATH = '/backend-api/codex';
 const DEFAULT_CLAUDE_CODE_MODEL = 'gpt-5.4';
 const DEFAULT_CLAUDE_CODE_REASONING_EFFORT = 'high';
+const DEFAULT_CLAUDE_API_KEY_PROBE_MODEL = 'claude-opus-4-7';
+const DEFAULT_GPT_API_KEY_PROBE_MODEL = 'gpt-5.5';
+const DEFAULT_GPT_API_KEY_FALLBACK_PROBE_MODEL = 'gpt-5.4';
+const DEFAULT_ROUTING_PREFERENCE = 'token_first';
 const SUPPORTED_REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
 const SUPPORTED_APIKEY_CAPABILITIES = new Set(['gpt', 'claude']);
+const SUPPORTED_ROUTING_PREFERENCES = new Set(['token_first', 'apikey_first', 'token_only', 'apikey_only']);
 
 function isPlainObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -22,7 +27,11 @@ function createDefaultTokenRuntime(isEnabled) {
         secondaryResetAt: null,
         secondaryResetAfterSeconds: null,
         reason: isEnabled ? 'unchecked' : 'missing_credentials',
-        lastError: null
+        lastError: null,
+        lastSelectionReason: null,
+        lastSelectedAt: null,
+        quotaHistory: [],
+        weeklyQuotaHistory: []
     };
 }
 
@@ -39,7 +48,11 @@ function createDefaultApiKeyRuntime() {
         secondaryResetAt: null,
         secondaryResetAfterSeconds: null,
         reason: 'apikey',
-        lastError: null
+        lastError: null,
+        lastSelectionReason: null,
+        lastSelectedAt: null,
+        quotaHistory: [],
+        weeklyQuotaHistory: []
     };
 }
 
@@ -96,6 +109,19 @@ function configSupportsCapability(config, capability) {
     return normalizeApiKeySupport(config.support).includes(capability);
 }
 
+function normalizeRoutingPreference(value) {
+    if (value === undefined || value === null || normalizeString(value) === '') {
+        return DEFAULT_ROUTING_PREFERENCE;
+    }
+
+    const preference = normalizeString(value);
+    if (!SUPPORTED_ROUTING_PREFERENCES.has(preference)) {
+        throw new Error('配置文件 routing_preference 仅支持 token_first、apikey_first、token_only、apikey_only');
+    }
+
+    return preference;
+}
+
 function parseOpenAiConfigFile(raw) {
     const parsed = JSON.parse(raw);
 
@@ -119,6 +145,19 @@ function parseOpenAiConfigFile(raw) {
 
         if (configType === 'apikey') {
             normalizeApiKeySupport(config.support);
+            if (
+                config.probe_model !== undefined &&
+                (typeof config.probe_model !== 'string' || config.probe_model.trim().length === 0)
+            ) {
+                throw new Error('配置项 probe_model 必须是非空字符串');
+            }
+        }
+
+        if (
+            config.auto_switch_disabled !== undefined &&
+            typeof config.auto_switch_disabled !== 'boolean'
+        ) {
+            throw new Error('配置项 auto_switch_disabled 必须是布尔值');
         }
     }
 
@@ -134,6 +173,10 @@ function parseOpenAiConfigFile(raw) {
 
     if (parsed.auth_token !== undefined && typeof parsed.auth_token !== 'string') {
         throw new Error('配置文件 auth_token 必须是字符串');
+    }
+
+    if (parsed.routing_preference !== undefined) {
+        normalizeRoutingPreference(parsed.routing_preference);
     }
 
     for (const fieldName of ['port', 'proxy_port']) {
@@ -232,18 +275,24 @@ function resolveResponsesOptions(parsed) {
     };
 }
 
+function resolveRoutingPreference(parsed) {
+    return normalizeRoutingPreference(parsed && parsed.routing_preference);
+}
+
 function createTokenRuntimeConfig(config, index) {
     const enabled = Boolean(config.access_token && config.account_id);
 
     return {
         type: 'token',
         index,
+        autoSwitchDisabled: config.auto_switch_disabled === true,
         baseUrl: CHATGPT_BASE_URL,
         apiBasePath: CODEX_API_BASE_PATH,
         access_token: config.access_token || '',
         refresh_token: config.refresh_token || '',
         client_id: config.client_id || '',
         account_id: config.account_id || '',
+        alias: config.alias || '',
         description: config.description || `OpenAI 配置 #${index + 1}`,
         runtime: createDefaultTokenRuntime(enabled)
     };
@@ -252,6 +301,12 @@ function createTokenRuntimeConfig(config, index) {
 function createApiKeyRuntimeConfig(config, index) {
     const apikey = normalizeString(config && config.apikey);
     const baseUrl = normalizeString(config && config.base_url).replace(/\/+$/, '');
+    const support = normalizeApiKeySupport(config.support);
+    const explicitProbeModel = normalizeString(config.probe_model);
+    const defaultProbeModels = support.includes('claude')
+        ? [DEFAULT_CLAUDE_API_KEY_PROBE_MODEL]
+        : [DEFAULT_GPT_API_KEY_PROBE_MODEL, DEFAULT_GPT_API_KEY_FALLBACK_PROBE_MODEL];
+    const probeModels = explicitProbeModel ? [explicitProbeModel] : defaultProbeModels;
 
     if (!apikey || !baseUrl) {
         throw new Error('apikey 配置至少需要 apikey 和 base_url');
@@ -260,10 +315,14 @@ function createApiKeyRuntimeConfig(config, index) {
     return {
         type: 'apikey',
         index,
+        autoSwitchDisabled: config.auto_switch_disabled === true,
         baseUrl,
         apiBasePath: '',
         apiKey: apikey,
-        support: normalizeApiKeySupport(config.support),
+        support,
+        probeModel: probeModels[0],
+        probeModels,
+        alias: config.alias || '',
         description: config.description || `APIKey 配置 #${index + 1}`,
         runtime: createDefaultApiKeyRuntime()
     };
@@ -303,14 +362,20 @@ module.exports = {
     CODEX_API_BASE_PATH,
     DEFAULT_CLAUDE_CODE_MODEL,
     DEFAULT_CLAUDE_CODE_REASONING_EFFORT,
+    DEFAULT_CLAUDE_API_KEY_PROBE_MODEL,
+    DEFAULT_GPT_API_KEY_PROBE_MODEL,
+    DEFAULT_GPT_API_KEY_FALLBACK_PROBE_MODEL,
+    DEFAULT_ROUTING_PREFERENCE,
     parseOpenAiConfigFile,
     resolveClaudeCodeOptions,
     resolveResponsesOptions,
+    resolveRoutingPreference,
     createRuntimeConfigs,
     createTokenRuntimeConfig,
     createApiKeyRuntimeConfig,
     getConfigItemType,
     normalizeApiKeySupport,
+    normalizeRoutingPreference,
     configSupportsCapability,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring

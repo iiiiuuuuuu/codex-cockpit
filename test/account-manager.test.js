@@ -16,6 +16,8 @@ function createRuntime(overrides = {}) {
     secondaryResetAfterSeconds: null,
     reason: 'unchecked',
     lastError: null,
+    lastSelectionReason: null,
+    lastSelectedAt: null,
     ...overrides,
   };
 }
@@ -76,6 +78,7 @@ function createManager(configs, overrides = {}) {
     quotaCheckTimeoutMs: overrides.quotaCheckTimeoutMs ?? 10 * 1000,
     quotaCheckIntervalMs: 60 * 1000,
     minRemainingPercent: 3,
+    routingPreference: overrides.routingPreference,
     buildAuthHeadersForConfig: config => ({
       authorization: `Bearer ${config.type === 'apikey' ? config.apiKey : config.access_token}`,
       'chatgpt-account-id': config.account_id,
@@ -84,9 +87,10 @@ function createManager(configs, overrides = {}) {
     shouldUseQuotaMonitoring: type => type === 'token',
     refreshTokenFn: overrides.refreshTokenFn,
     persistTokenRefreshFn: overrides.persistTokenRefreshFn,
+    persistQuotaHistoryFn: overrides.persistQuotaHistoryFn,
     log: (...args) => logs.push(args.join(' ')),
     warn: (...args) => warnings.push(args.join(' ')),
-    now: () => 1713337200000,
+    now: overrides.now || (() => 1713337200000),
   });
 
   return { manager, logs, warnings };
@@ -140,6 +144,35 @@ test('ensureActiveConfig switches to the next available account when current one
   assert.equal(selected, configs[1]);
   assert.equal(manager.getActiveConfig(), configs[1]);
   assert.match(warnings[0], /账号切换: #1 account-1 -> #2 account-2 \(poll\)/);
+});
+
+test('ensureActiveConfig chooses the available token account with the most primary quota after current becomes unavailable', () => {
+  const configs = [
+    createConfig(0, { available: false, reason: 'remaining_below_3%', primaryRemainingPercent: 2 }),
+    createConfig(1, { available: true, reason: 'ok', primaryRemainingPercent: 45, secondaryRemainingPercent: 70 }),
+    createConfig(2, { available: true, reason: 'ok', primaryRemainingPercent: 82, secondaryRemainingPercent: 40 }),
+  ];
+  const { manager } = createManager(configs);
+
+  const selected = manager.ensureActiveConfig('poll');
+
+  assert.equal(selected, configs[2]);
+  assert.equal(manager.getActiveConfig(), configs[2]);
+  assert.equal(configs[2].runtime.lastSelectionReason, 'poll');
+  assert.equal(configs[2].runtime.lastSelectedAt, 1713337200000);
+});
+
+test('ensureActiveConfig keeps the current token even when another token has more quota', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok', primaryRemainingPercent: 35 }),
+    createConfig(1, { available: true, reason: 'ok', primaryRemainingPercent: 90 }),
+  ];
+  const { manager } = createManager(configs);
+
+  const selected = manager.ensureActiveConfig('poll');
+
+  assert.equal(selected, configs[0]);
+  assert.equal(manager.getActiveConfig(), configs[0]);
 });
 
 test('ensureActiveConfig does not log account switches during startup', () => {
@@ -247,6 +280,9 @@ test('getAccountStatus returns the view model used by callers', () => {
     secondaryResetAfterSeconds: 3600,
     lastCheckedAt: 1713337200000,
     reason: 'remaining_below_3%',
+    lastError: 'quota low',
+    lastSelectionReason: 'poll',
+    lastSelectedAt: 1713337200000,
   });
   const { manager } = createManager([config]);
 
@@ -266,6 +302,9 @@ test('getAccountStatus returns the view model used by callers', () => {
     secondaryResetAfterSeconds: 3600,
     lastCheckedAt: 1713337200000,
     reason: 'remaining_below_3%',
+    lastError: 'quota low',
+    lastSelectionReason: 'poll',
+    lastSelectedAt: 1713337200000,
   }, {
     index: status.index,
     description: status.description,
@@ -280,10 +319,134 @@ test('getAccountStatus returns the view model used by callers', () => {
     secondaryResetAfterSeconds: status.secondaryResetAfterSeconds,
     lastCheckedAt: status.lastCheckedAt,
     reason: status.reason,
+    lastError: status.lastError,
+    lastSelectionReason: status.lastSelectionReason,
+    lastSelectedAt: status.lastSelectedAt,
   });
   assert.match(status.runtimeSummary, /可用=否 \| 额度=2%/);
   assert.match(status.runtimeSummary, /状态=剩余额度低于 3%/);
   assert.equal(status.summaryLine, `${status.label} | ${status.runtimeSummary}`);
+});
+
+test('account labels prefer alias in logs when alias is present', () => {
+  const config = createConfig(0, {
+    available: true,
+    reason: 'ok',
+  }, {
+    alias: '主账号',
+    description: 'user@example.com',
+  });
+  const { manager } = createManager([config]);
+
+  const status = manager.getAccountStatus(config);
+
+  assert.equal(status.label, '#1 主账号（user@example.com）');
+  assert.equal(status.summaryLine.startsWith('#1 主账号（user@example.com） |'), true);
+});
+
+test('applyQuotaPayload records primary and weekly quota history samples', () => {
+  let currentNow = 1713337200000;
+  const configs = [createConfig(0)];
+  let persistCount = 0;
+  const { manager } = createManager(configs, {
+    now: () => currentNow,
+    persistQuotaHistoryFn: persistedConfigs => {
+      persistCount += 1;
+      assert.equal(persistedConfigs, configs);
+    },
+  });
+
+  manager.applyQuotaPayload(configs[0], {
+    rate_limit: {
+      allowed: true,
+      limit_reached: false,
+      primary_window: { used_percent: 25, reset_at: 1713350000 },
+      secondary_window: { used_percent: 10, reset_at: 1713360000 },
+    },
+  });
+  currentNow += 60 * 1000;
+  manager.applyQuotaPayload(configs[0], {
+    rate_limit: {
+      allowed: true,
+      limit_reached: false,
+      primary_window: { used_percent: 40, reset_at: 1713350000 },
+      secondary_window: { used_percent: 10, reset_at: 1713360000 },
+    },
+  });
+
+  const status = manager.getAccountStatus(configs[0]);
+
+  assert.deepEqual(status.quotaHistory, [
+    {
+      at: 1713337200000,
+      remainingPercent: 75,
+      resetAt: 1713350000,
+      reason: 'ok',
+      available: true,
+    },
+    {
+      at: 1713337260000,
+      remainingPercent: 60,
+      resetAt: 1713350000,
+      reason: 'ok',
+      available: true,
+    },
+  ]);
+  assert.deepEqual(status.weeklyQuotaHistory, [
+    {
+      at: 1713337200000,
+      remainingPercent: 90,
+      resetAt: 1713360000,
+      reason: 'ok',
+      available: true,
+    },
+    {
+      at: 1713337260000,
+      remainingPercent: 90,
+      resetAt: 1713360000,
+      reason: 'ok',
+      available: true,
+    },
+  ]);
+  assert.equal(persistCount, 2);
+});
+
+test('getAccountStatus prunes quota history outside the last 24 hours', () => {
+  const now = 1713337200000;
+  const config = createConfig(0, {
+    quotaHistory: [
+      { at: now - (24 * 60 * 60 * 1000) - 1, remainingPercent: 80, resetAt: 1713350000, reason: 'ok', available: true },
+      { at: now - (24 * 60 * 60 * 1000), remainingPercent: 70, resetAt: 1713350000, reason: 'ok', available: true },
+      { at: now - 60 * 1000, remainingPercent: 65, resetAt: 1713350000, reason: 'ok', available: true },
+    ],
+  });
+  const { manager } = createManager([config], {
+    now: () => now,
+  });
+
+  const status = manager.getAccountStatus(config);
+
+  assert.deepEqual(status.quotaHistory.map(sample => sample.remainingPercent), [70, 65]);
+  assert.deepEqual(config.runtime.quotaHistory.map(sample => sample.remainingPercent), [70, 65]);
+});
+
+test('getAccountStatus prunes weekly quota history outside the last seven days', () => {
+  const now = 1713337200000;
+  const config = createConfig(0, {
+    weeklyQuotaHistory: [
+      { at: now - (7 * 24 * 60 * 60 * 1000) - 1, remainingPercent: 88, resetAt: 1713360000, reason: 'ok', available: true },
+      { at: now - (7 * 24 * 60 * 60 * 1000), remainingPercent: 77, resetAt: 1713360000, reason: 'ok', available: true },
+      { at: now - 60 * 1000, remainingPercent: 66, resetAt: 1713360000, reason: 'ok', available: true },
+    ],
+  });
+  const { manager } = createManager([config], {
+    now: () => now,
+  });
+
+  const status = manager.getAccountStatus(config);
+
+  assert.deepEqual(status.weeklyQuotaHistory.map(sample => sample.remainingPercent), [77, 66]);
+  assert.deepEqual(config.runtime.weeklyQuotaHistory.map(sample => sample.remainingPercent), [77, 66]);
 });
 
 test('ensureActiveConfig keeps the current account when no account is marked available', () => {
@@ -870,6 +1033,89 @@ test('ensureActiveConfig prefers an available token config over an available api
   assert.equal(selected.index, 1);
 });
 
+test('ensureActiveConfig skips configs disabled for automatic switching', () => {
+  const configs = [
+    createConfig(0, { available: false, reason: 'quota_check_failed' }),
+    createConfig(1, {
+      available: true,
+      reason: 'ok',
+      primaryRemainingPercent: 90,
+    }, {
+      autoSwitchDisabled: true,
+    }),
+    createConfig(2, {
+      available: true,
+      reason: 'ok',
+      primaryRemainingPercent: 40,
+    }),
+  ];
+  const { manager } = createManager(configs, {
+    initialActiveConfigIndex: 0,
+  });
+
+  const selected = manager.ensureActiveConfig('poll');
+
+  assert.equal(selected, configs[2]);
+  assert.equal(manager.getActiveConfig(), configs[2]);
+});
+
+test('ensureActiveConfig prefers an available API key when routing preference is apikey_first', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-1',
+    }),
+  ];
+  const { manager } = createManager(configs, {
+    routingPreference: 'apikey_first',
+  });
+
+  const selected = manager.ensureActiveConfig('select');
+
+  assert.equal(selected, configs[1]);
+  assert.equal(manager.getActiveConfig(), configs[1]);
+});
+
+test('ensureActiveConfig excludes token configs when routing preference is apikey_only', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-1',
+    }),
+  ];
+  const { manager } = createManager(configs, {
+    routingPreference: 'apikey_only',
+  });
+
+  const selected = manager.ensureActiveConfig('select');
+
+  assert.equal(selected, configs[1]);
+  assert.equal(manager.getActiveConfig(config => config.type === 'token'), null);
+});
+
+test('activateConfig rejects configs blocked by the current routing preference', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, { reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiBasePath: '',
+      apiKey: 'sk-1',
+    }),
+  ];
+  const { manager } = createManager(configs, {
+    routingPreference: 'apikey_only',
+  });
+
+  assert.throws(() => manager.activateConfig(0, 'manual'), /当前使用偏好不允许切换到该账号模式/);
+});
+
 test('refreshQuotas switches back from apikey fallback when a token account is available', async () => {
   const configs = [
     createConfig(0, { available: false, reason: 'quota_check_failed' }),
@@ -1095,7 +1341,52 @@ test('refreshConfig probes a claude API key config and marks it available', asyn
   assert.equal(calls[0].targetUrl, 'https://claude.example.com/v1/messages');
   assert.equal(calls[0].headers.authorization, 'Bearer sk-claude');
   assert.equal(calls[0].headers['anthropic-version'], '2023-06-01');
+  assert.match(calls[0].body.toString('utf8'), /claude-opus-4-7/);
   assert.match(calls[0].body.toString('utf8'), /ping/);
+});
+
+test('refreshConfig falls back from gpt-5.5 to gpt-5.4 when the primary probe model is unavailable', async () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'apikey' }, {
+      type: 'apikey',
+      baseUrl: 'https://api.example.com/v1',
+      apiKey: 'sk-gpt',
+      support: ['gpt'],
+      probeModels: ['gpt-5.5', 'gpt-5.4'],
+    }),
+  ];
+  const calls = [];
+  const { manager } = createManager(configs, {
+    requestBufferedFn: requestOptions => {
+      calls.push(requestOptions);
+      if (calls.length === 1) {
+        return Promise.resolve({
+          statusCode: 400,
+          bodyText: JSON.stringify({
+            error: {
+              message: 'no available channels for model gpt-5.5',
+            },
+          }),
+        });
+      }
+
+      return Promise.resolve({
+        statusCode: 200,
+        bodyText: JSON.stringify({
+          id: 'chatcmpl-1',
+        }),
+      });
+    },
+  });
+
+  await manager.refreshConfig(0, 'admin_refresh_single');
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].body.toString('utf8'), /gpt-5.5/);
+  assert.match(calls[1].body.toString('utf8'), /gpt-5.4/);
+  assert.equal(configs[0].runtime.available, true);
+  assert.equal(configs[0].runtime.reason, 'apikey');
+  assert.equal(configs[0].runtime.lastError, null);
 });
 
 test('refreshConfig marks an API key config unavailable when the probe fails', async () => {
@@ -1107,15 +1398,19 @@ test('refreshConfig marks an API key config unavailable when the probe fails', a
       support: ['gpt'],
     }),
   ];
+  const calls = [];
   const { manager, warnings } = createManager(configs, {
-    requestBufferedFn: () => Promise.resolve({
-      statusCode: 401,
-      bodyText: JSON.stringify({
-        error: {
-          message: 'invalid api key',
-        },
-      }),
-    }),
+    requestBufferedFn: requestOptions => {
+      calls.push(requestOptions);
+      return Promise.resolve({
+        statusCode: 401,
+        bodyText: JSON.stringify({
+          error: {
+            message: 'invalid api key',
+          },
+        }),
+      });
+    },
   });
 
   await manager.refreshConfig(0, 'admin_refresh_single');
@@ -1123,6 +1418,8 @@ test('refreshConfig marks an API key config unavailable when the probe fails', a
   assert.equal(configs[0].runtime.available, false);
   assert.equal(configs[0].runtime.reason, 'apikey_check_failed');
   assert.equal(configs[0].runtime.lastCheckedAt, 1713337200000);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].body.toString('utf8'), /gpt-5.5/);
   assert.equal(configs[0].runtime.lastError, 'invalid api key');
   assert.equal(warnings.some(line => /没有可用账号/.test(line)), true);
 });

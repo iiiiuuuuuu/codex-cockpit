@@ -4,6 +4,8 @@ const { PassThrough } = require('node:stream');
 
 const {
   applyResponsesFailoverRequestHeaders,
+  buildResponsesClientVisibleErrorPayload,
+  classifyResponsesClientVisibleError,
   classifyRetryableResponsesHttpError,
   createResponsesEventStreamInspector,
   isInspectableResponsesEventStream,
@@ -133,6 +135,28 @@ test('classifyRetryableResponsesHttpError ignores non-retryable payloads', () =>
   });
 
   assert.equal(result, null);
+});
+
+test('classifyResponsesClientVisibleError rewrites encrypted content affinity mismatches', () => {
+  const result = classifyResponsesClientVisibleError({
+    statusCode: 502,
+    bodyText: 'unexpected status 502 Bad Gateway: request failed with status: 400 Bad Request {"error":{"message":"The encrypted content gAAA... could not be verified. Reason: Encrypted content could not be decrypted or parsed. This error occurs when load balancing Responses API across deployments with different API keys. Enable encrypted_content_affinity."}}',
+  });
+
+  assert.deepEqual(result, {
+    reason: 'responses_session_context_incompatible',
+    statusCode: 400,
+    errorCode: 'session_context_incompatible',
+    message: '切换账号后旧会话上下文不兼容，请新开会话',
+  });
+  assert.deepEqual(buildResponsesClientVisibleErrorPayload(result), {
+    error: {
+      type: 'invalid_request_error',
+      code: 'session_context_incompatible',
+      message: '切换账号后旧会话上下文不兼容，请新开会话',
+    },
+    message: '切换账号后旧会话上下文不兼容，请新开会话',
+  });
 });
 
 test('createResponsesEventStreamInspector catches insufficient_quota failures', () => {

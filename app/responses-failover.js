@@ -19,6 +19,8 @@ const IGNORABLE_PRELUDE_EVENT_TYPES = new Set([
   'response.in_progress',
 ]);
 
+const RESPONSES_SESSION_CONTEXT_INCOMPATIBLE_MESSAGE = '切换账号后旧会话上下文不兼容，请新开会话';
+
 function normalizeErrorText(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -96,6 +98,68 @@ function getAuthFailureKey(payload, bodyText) {
   }
 
   return '';
+}
+
+function collectErrorTextCandidates(payload, bodyText) {
+  return [
+    getPayloadString(payload, ['detail']),
+    getPayloadString(payload, ['message']),
+    getPayloadString(payload, ['code']),
+    getPayloadString(payload, ['error', 'code']),
+    getPayloadString(payload, ['error', 'type']),
+    getPayloadString(payload, ['error', 'message']),
+    bodyText,
+  ].filter(value => typeof value === 'string' && value.trim());
+}
+
+function hasEncryptedContentAffinityError(payload, bodyText) {
+  const normalized = collectErrorTextCandidates(payload, bodyText)
+    .join('\n')
+    .toLowerCase();
+
+  return normalized.includes('invalid_encrypted_content') ||
+    normalized.includes('encrypted_content_affinity') ||
+    (
+      normalized.includes('encrypted content') &&
+      (
+        normalized.includes('could not be decrypted') ||
+        normalized.includes('could not be verified')
+      )
+    );
+}
+
+function classifyResponsesClientVisibleError({ statusCode, bodyText }) {
+  const normalizedStatusCode = Number(statusCode || 0);
+  const payload = parseJsonObject(bodyText);
+
+  if (normalizedStatusCode >= 400 && hasEncryptedContentAffinityError(payload, bodyText)) {
+    return {
+      reason: 'responses_session_context_incompatible',
+      statusCode: 400,
+      errorCode: 'session_context_incompatible',
+      message: RESPONSES_SESSION_CONTEXT_INCOMPATIBLE_MESSAGE,
+    };
+  }
+
+  return null;
+}
+
+function buildResponsesClientVisibleErrorPayload(classification) {
+  const message = classification && classification.message
+    ? classification.message
+    : RESPONSES_SESSION_CONTEXT_INCOMPATIBLE_MESSAGE;
+  const errorCode = classification && classification.errorCode
+    ? classification.errorCode
+    : 'session_context_incompatible';
+
+  return {
+    error: {
+      type: 'invalid_request_error',
+      code: errorCode,
+      message,
+    },
+    message,
+  };
 }
 
 function classifyRetryableResponsesHttpError({ statusCode, bodyText }) {
@@ -340,6 +404,8 @@ function createResponsesEventStreamInspector(options = {}) {
 
 module.exports = {
   applyResponsesFailoverRequestHeaders,
+  buildResponsesClientVisibleErrorPayload,
+  classifyResponsesClientVisibleError,
   classifyRetryableResponsesHttpError,
   classifyRetryableResponsesStreamPayload,
   createResponsesEventStreamInspector,
@@ -347,4 +413,5 @@ module.exports = {
   getHeaderValue,
   isInspectableResponsesEventStream,
   normalizeContentEncoding,
+  RESPONSES_SESSION_CONTEXT_INCOMPATIBLE_MESSAGE,
 };

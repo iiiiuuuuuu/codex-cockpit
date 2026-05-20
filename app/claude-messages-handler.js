@@ -6,6 +6,8 @@ const {
 } = require('./claude-responses-compat');
 const {
     classifyRetryableResponsesHttpError,
+    buildResponsesClientVisibleErrorPayload,
+    classifyResponsesClientVisibleError,
     classifyRetryableResponsesStreamPayload
 } = require('./responses-failover');
 
@@ -117,7 +119,31 @@ function sendJsonError(res, status, payload) {
     res.status(status).json(payload);
 }
 
+function sendResponsesClientVisibleError(res, status, bodyText) {
+    const classification = classifyResponsesClientVisibleError({
+        statusCode: status,
+        bodyText,
+    });
+
+    if (!classification) {
+        return false;
+    }
+
+    sendJsonError(res, classification.statusCode, buildResponsesClientVisibleErrorPayload(classification));
+    return true;
+}
+
 function sendUpstreamError(res, status, contentType, bodyText) {
+    const classification = classifyResponsesClientVisibleError({
+        statusCode: status,
+        bodyText,
+    });
+
+    if (classification) {
+        sendJsonError(res, classification.statusCode, buildResponsesClientVisibleErrorPayload(classification));
+        return;
+    }
+
     const normalizedContentType = String(contentType || '').toLowerCase();
 
     if (normalizedContentType.includes('application/json')) {
@@ -385,7 +411,8 @@ function forwardClaudeApiKeyMessagesRequest({
             rewrittenUrl: incomingUrl,
             config: {
                 index: config.index,
-                description: `#${config.index + 1} ${config.description}`,
+                alias: config.alias,
+                description: config.description,
                 baseUrl: config.baseUrl
             },
             headers: upstreamHeaders,
@@ -430,6 +457,10 @@ function forwardClaudeApiKeyMessagesRequest({
 
                 error(`代理请求失败: ${err.message}`);
                 if (!res.headersSent) {
+                    if (sendResponsesClientVisibleError(res, 400, err.message)) {
+                        return;
+                    }
+
                     sendJsonError(res, getGatewayStatusCode(err), {
                         error: 'Bad Gateway',
                         message: err.message
@@ -462,6 +493,10 @@ function forwardClaudeApiKeyMessagesRequest({
             }
 
             error(`代理请求失败: ${err.message}`);
+            if (sendResponsesClientVisibleError(res, 400, err.message)) {
+                return;
+            }
+
             sendJsonError(res, getGatewayStatusCode(err), {
                 error: 'Bad Gateway',
                 message: err.message
@@ -613,7 +648,8 @@ function createClaudeMessagesHandler({
                     rewrittenUrl: attemptResponsesApiPath,
                     config: {
                         index: activeConfig.index,
-                        description: `#${activeConfig.index + 1} ${activeConfig.description}`,
+                        alias: activeConfig.alias,
+                        description: activeConfig.description,
                         baseUrl: activeConfig.baseUrl
                     },
                     headers: upstreamHeaders,
@@ -752,13 +788,17 @@ function createClaudeMessagesHandler({
                         return;
                     }
 
-                    error(`代理请求失败: ${err.message}`);
-                    const statusCode = getGatewayStatusCode(err);
-                    sendJsonError(res, statusCode, {
-                        error: statusCode === 504 ? 'Gateway Timeout' : 'Bad Gateway',
-                        message: err.message
-                    });
+                error(`代理请求失败: ${err.message}`);
+                const statusCode = getGatewayStatusCode(err);
+                if (sendResponsesClientVisibleError(res, 400, err.message)) {
+                    return;
+                }
+
+                sendJsonError(res, statusCode, {
+                    error: statusCode === 504 ? 'Gateway Timeout' : 'Bad Gateway',
+                    message: err.message
                 });
+            });
             }).catch(err => {
                 if (requestClosed) {
                     return;
@@ -766,6 +806,10 @@ function createClaudeMessagesHandler({
 
                 const message = err.message || 'upstream request failed';
                 error(`代理请求失败: ${message}`);
+                if (sendResponsesClientVisibleError(res, 400, message)) {
+                    return;
+                }
+
                 const statusCode = getGatewayStatusCode(err);
                 sendJsonError(res, statusCode, {
                     error: statusCode === 504 ? 'Gateway Timeout' : 'Bad Gateway',

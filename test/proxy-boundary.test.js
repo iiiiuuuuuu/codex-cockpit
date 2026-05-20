@@ -178,6 +178,54 @@ test('createClaudeMessagesHandler rejects apikey configs with a clear error befo
   assert.match(res.payload.message, /token/);
 });
 
+test('createClaudeMessagesHandler rewrites encrypted content affinity errors into a clear session warning', async () => {
+  const handler = createClaudeMessagesHandler({
+    getConfig: () => ({
+      type: 'token',
+      index: 0,
+      description: 'Token config',
+      access_token: 'token-1',
+      account_id: 'account-1',
+      baseUrl: 'https://example.com',
+    }),
+    createUpstreamRequest: () => ({
+      responsePromise: Promise.resolve(createUpstreamResponse(400, {
+        'content-type': 'application/json',
+      }, JSON.stringify({
+        error: {
+          code: 'invalid_encrypted_content',
+          message: 'The encrypted content gAAA... could not be verified. Reason: Encrypted content could not be decrypted or parsed. Enable encrypted_content_affinity.',
+        },
+      }))),
+      abort() {},
+    }),
+  });
+
+  const res = createJsonResponseRecorder();
+  await handler(createClaudeRequest({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 32,
+    messages: [
+      {
+        role: 'user',
+        content: 'hello',
+      },
+    ],
+  }), res);
+
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.payload, {
+    error: {
+      type: 'invalid_request_error',
+      code: 'session_context_incompatible',
+      message: '切换账号后旧会话上下文不兼容，请新开会话',
+    },
+    message: '切换账号后旧会话上下文不兼容，请新开会话',
+  });
+});
+
 test('createClaudeMessagesHandler forwards apikey configs with claude support without responses conversion', async () => {
   const upstreamRequests = [];
   const handler = createClaudeMessagesHandler({

@@ -6,6 +6,7 @@ const {
   parseOpenAiConfigFile,
   resolveClaudeCodeOptions,
   resolveResponsesOptions,
+  resolveRoutingPreference,
   createRuntimeConfigs,
 } = require('../app/openai-config');
 
@@ -133,6 +134,7 @@ test('createRuntimeConfigs defaults config items to token type', () => {
         account_id: 'account',
         refresh_token: 'refresh-token',
         description: 'primary token',
+        auto_switch_disabled: true,
       },
     ],
   }));
@@ -142,8 +144,10 @@ test('createRuntimeConfigs defaults config items to token type', () => {
   assert.equal(runtimeConfigs.length, 1);
   assert.equal(runtimeConfigs[0].type, 'token');
   assert.equal(runtimeConfigs[0].description, 'primary token');
+  assert.equal(runtimeConfigs[0].alias, '');
   assert.equal(runtimeConfigs[0].baseUrl, 'https://chatgpt.com');
   assert.equal(runtimeConfigs[0].refresh_token, 'refresh-token');
+  assert.equal(runtimeConfigs[0].autoSwitchDisabled, true);
 });
 
 test('createRuntimeConfigs supports item-level apikey configs', () => {
@@ -198,8 +202,71 @@ test('createRuntimeConfigs supports apikey configs that only support Claude mess
   assert.equal(runtimeConfigs[0].baseUrl, 'https://claude.example.com/v1');
   assert.equal(runtimeConfigs[0].apiKey, 'sk-claude');
   assert.equal(runtimeConfigs[0].description, 'claude provider');
+  assert.equal(runtimeConfigs[0].alias, '');
   assert.deepEqual(runtimeConfigs[0].support, ['claude']);
+  assert.equal(runtimeConfigs[0].probeModel, 'claude-opus-4-7');
+  assert.deepEqual(runtimeConfigs[0].probeModels, ['claude-opus-4-7']);
+  assert.equal(runtimeConfigs[0].autoSwitchDisabled, false);
   assert.equal(runtimeConfigs[0].runtime.reason, 'apikey');
+});
+
+test('createRuntimeConfigs defaults apikey probe models by support type', () => {
+  const runtimeConfigs = createRuntimeConfigs(parseOpenAiConfigFile(JSON.stringify({
+    configs: [
+      {
+        type: 'apikey',
+        apikey: 'sk-gpt',
+        base_url: 'https://api.example.com/v1',
+        support: ['gpt'],
+      },
+      {
+        type: 'apikey',
+        apikey: 'sk-claude',
+        base_url: 'https://claude.example.com/v1',
+        support: ['claude'],
+      },
+    ],
+  })));
+
+  assert.equal(runtimeConfigs[0].probeModel, 'gpt-5.5');
+  assert.deepEqual(runtimeConfigs[0].probeModels, ['gpt-5.5', 'gpt-5.4']);
+  assert.equal(runtimeConfigs[1].probeModel, 'claude-opus-4-7');
+  assert.deepEqual(runtimeConfigs[1].probeModels, ['claude-opus-4-7']);
+});
+
+test('createRuntimeConfigs keeps an explicit apikey probe model', () => {
+  const runtimeConfigs = createRuntimeConfigs(parseOpenAiConfigFile(JSON.stringify({
+    configs: [
+      {
+        type: 'apikey',
+        apikey: 'sk-custom',
+        base_url: 'https://api.example.com/v1',
+        support: ['gpt'],
+        probe_model: 'grok-4',
+      },
+    ],
+  })));
+
+  assert.equal(runtimeConfigs[0].probeModel, 'grok-4');
+  assert.deepEqual(runtimeConfigs[0].probeModels, ['grok-4']);
+});
+
+test('parseOpenAiConfigFile rejects non-boolean auto switch flags', () => {
+  assert.throws(() => {
+    parseOpenAiConfigFile(JSON.stringify({
+      configs: [
+        {
+          access_token: 'token',
+          account_id: 'account',
+          auto_switch_disabled: 'true',
+        },
+      ],
+    }));
+  }, err => {
+    assert.equal(err instanceof Error, true);
+    assert.match(err.message, /auto_switch_disabled 必须是布尔值/);
+    return true;
+  });
 });
 
 test('parseOpenAiConfigFile rejects unsupported apikey support values', () => {
@@ -273,12 +340,27 @@ test('parseOpenAiConfigFile accepts optional top-level apikeys and auth_token fi
     auth_token: 'admin-token',
     port: '3010',
     proxy_port: 7890,
+    routing_preference: 'apikey_first',
   })));
 
   assert.deepEqual(parsed.apikeys, ['router-secret', 'backup-secret']);
   assert.equal(parsed.auth_token, 'admin-token');
   assert.equal(parsed.port, '3010');
   assert.equal(parsed.proxy_port, 7890);
+  assert.equal(resolveRoutingPreference(parsed), 'apikey_first');
+  assert.equal(resolveRoutingPreference(createBaseConfig()), 'token_first');
+});
+
+test('parseOpenAiConfigFile rejects unsupported routing preference values', () => {
+  assert.throws(() => {
+    parseOpenAiConfigFile(JSON.stringify(createBaseConfig({
+      routing_preference: 'random',
+    })));
+  }, err => {
+    assert.equal(err instanceof Error, true);
+    assert.match(err.message, /routing_preference 仅支持/);
+    return true;
+  });
 });
 
 test('parseOpenAiConfigFile rejects a non-array apikeys field', () => {

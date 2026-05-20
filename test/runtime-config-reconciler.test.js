@@ -48,7 +48,13 @@ test('getRuntimeConfigIdentity includes the token credentials for token configs'
 
 test('reconcileRuntimeConfigs preserves existing runtime state for unchanged configs', () => {
     const previousConfigs = [
-        createTokenConfig(0, { available: false, reason: 'quota_check_failed', lastCheckedAt: 1713337200000 }),
+        createTokenConfig(0, {
+            available: false,
+            reason: 'quota_check_failed',
+            lastCheckedAt: 1713337200000,
+            quotaHistory: [{ at: 1713337200000, remainingPercent: 66 }],
+            weeklyQuotaHistory: [{ at: 1713337200000, remainingPercent: 91 }],
+        }),
         createTokenConfig(1, { available: true, reason: 'ok', remainingPercent: 66, lastCheckedAt: 1713337200000 }),
     ];
     const nextConfigs = [
@@ -64,6 +70,10 @@ test('reconcileRuntimeConfigs preserves existing runtime state for unchanged con
 
     assert.equal(nextConfigs[0].runtime.reason, 'quota_check_failed');
     assert.equal(nextConfigs[0].runtime.lastCheckedAt, 1713337200000);
+    assert.deepEqual(nextConfigs[0].runtime.quotaHistory, [{ at: 1713337200000, remainingPercent: 66 }]);
+    assert.deepEqual(nextConfigs[0].runtime.weeklyQuotaHistory, [{ at: 1713337200000, remainingPercent: 91 }]);
+    assert.notEqual(nextConfigs[0].runtime.quotaHistory, previousConfigs[0].runtime.quotaHistory);
+    assert.notEqual(nextConfigs[0].runtime.weeklyQuotaHistory, previousConfigs[0].runtime.weeklyQuotaHistory);
     assert.equal(nextConfigs[1].runtime.remainingPercent, 66);
     assert.equal(nextConfigs[2].runtime.reason, 'unchecked');
     assert.equal(reconciled.initialActiveConfigIndex, 1);

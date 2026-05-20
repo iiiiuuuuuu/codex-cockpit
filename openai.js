@@ -12,10 +12,14 @@ const { createUpstreamRequest, consumeResponseBody } = require('./app/upstream-r
 const { applyForcedProxyHeaders } = require('./app/proxy-header-overrides');
 const { normalizeResponsesRequestBody, isResponsesPath } = require('./app/responses-defaults');
 const { createClaudeMessagesHandler } = require('./app/claude-messages-handler');
+const { formatAccountLabel } = require('./app/account-label');
 const { createAccountManager } = require('./app/account-manager');
+const { readRecentLogContent, normalizeLineLimit } = require('./app/log-reader');
 const { refreshOpenAIToken } = require('./app/openai-token-refresh');
 const {
     applyResponsesFailoverRequestHeaders,
+    buildResponsesClientVisibleErrorPayload,
+    classifyResponsesClientVisibleError,
     classifyRetryableResponsesHttpError,
     createResponsesEventStreamInspector,
     drainAbandonedResponse,
@@ -25,6 +29,7 @@ const {
 const {
     resolveClaudeCodeOptions,
     resolveResponsesOptions,
+    resolveRoutingPreference,
     createRuntimeConfigs,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring,
@@ -43,6 +48,11 @@ const {
 } = require('./app/config-editor');
 const { reconcileRuntimeConfigs } = require('./app/runtime-config-reconciler');
 const {
+    hydrateQuotaHistories,
+    readQuotaHistoryFile,
+    writeQuotaHistoryFile,
+} = require('./app/quota-history-store');
+const {
     generateRandomSecret,
     getConfiguredApiKeys,
     getConfiguredAuthToken,
@@ -57,6 +67,10 @@ let CONFIG_FILE_NAME = process.env.CONFIG || 'openai.json';
 const CONFIG_FILE = path.join(__dirname, CONFIG_FILE_NAME);
 const CONTROL_TOKEN = process.env.AIROUTER_CONTROL_TOKEN || '';
 const CONTROL_REQUEST_FILE = process.env.AIROUTER_CONTROL_REQUEST_FILE || '';
+const LOG_FILE = path.join(__dirname, 'openai.log');
+const QUOTA_HISTORY_FILE = process.env.QUOTA_HISTORY_FILE
+    ? path.resolve(process.env.QUOTA_HISTORY_FILE)
+    : path.join(__dirname, 'quota-history.json');
 const QUOTA_CHECK_PATH = '/backend-api/wham/usage';
 const QUOTA_CHECK_INTERVAL_MS = 1 * 60 * 1000;
 const MIN_REMAINING_PERCENT = 3;
@@ -112,11 +126,19 @@ const ACCESS_LOG_ENABLED = (
 ) && !hasCliFlag('--no-access-log');
 
 function buildLoadedConfig(parsed) {
+    const configs = createRuntimeConfigs(parsed);
+    hydrateQuotaHistories(
+        configs,
+        readQuotaHistoryFile(QUOTA_HISTORY_FILE, { warn }),
+        { now: getCurrentTimestamp }
+    );
+
     return {
         parsed,
-        configs: createRuntimeConfigs(parsed),
+        configs,
         claudeCode: resolveClaudeCodeOptions(parsed),
-        responses: resolveResponsesOptions(parsed)
+        responses: resolveResponsesOptions(parsed),
+        routingPreference: resolveRoutingPreference(parsed)
     };
 }
 
@@ -266,7 +288,7 @@ function logProxyRequestSnapshot(req, originalUrl, rewrittenUrl, config, headers
 
     log('='.repeat(70));
     log('完整请求转发日志');
-    log(`使用账号: #${config.index + 1} ${config.description}`);
+    log(`使用账号: ${formatAccountLabel(config)}`);
     log(`原始请求: ${req.method} ${originalUrl}`);
     log(`转发目标: ${req.method} ${config.baseUrl}${rewrittenUrl}`);
     log('请求头:');
@@ -427,6 +449,20 @@ function writeBufferedUpstreamResponse(res, statusCode, rawHeaders, bodyBuffer) 
     }
 
     return responseMeta;
+}
+
+function sendResponsesClientVisibleError(res, statusCode, bodyText) {
+    const classification = classifyResponsesClientVisibleError({
+        statusCode,
+        bodyText,
+    });
+
+    if (!classification) {
+        return false;
+    }
+
+    res.status(classification.statusCode).json(buildResponsesClientVisibleErrorPayload(classification));
+    return true;
 }
 
 async function inspectResponsesEventStream(response) {
@@ -634,10 +670,7 @@ function createClaudeMessagesRequestHandler() {
                 { method: payload.method, url: payload.rewrittenUrl },
                 payload.originalUrl,
                 payload.rewrittenUrl,
-                {
-                    ...payload.config,
-                    description: payload.config.description
-                },
+                payload.config,
                 payload.headers,
                 payload.bodyBuffer
             );
@@ -648,7 +681,7 @@ function createClaudeMessagesRequestHandler() {
         clientVersion: process.env.CODEX_CLIENT_VERSION || '0.0.1',
         upstreamRequestTimeoutMs: UPSTREAM_REQUEST_TIMEOUT_MS,
         handleRetryableUpstreamError: (config, classification) => {
-            warn(`claude responses 自动切号: #${config.index + 1} ${config.description} (${classification.retrySource}:${classification.retryKey})`);
+            warn(`claude responses 自动切号: ${formatAccountLabel(config)} (${classification.retrySource}:${classification.retryKey})`);
             return accountManager.markConfigUnavailable(config, classification.reason, {
                 lastError: `${classification.retrySource}:${classification.retryKey}`,
                 switchReason: 'claude_responses_failover',
@@ -677,6 +710,7 @@ function applyLoadedConfig(loadedConfig) {
         quotaCheckIntervalMs: QUOTA_CHECK_INTERVAL_MS,
         minRemainingPercent: MIN_REMAINING_PERCENT,
         minWeeklyRemainingPercent: MIN_WEEKLY_REMAINING_PERCENT,
+        routingPreference: loadedConfig.routingPreference,
         buildAuthHeadersForConfig,
         shouldUseQuotaMonitoring,
         refreshTokenFn: ({ refreshToken, clientId }) => refreshOpenAIToken({
@@ -685,6 +719,9 @@ function applyLoadedConfig(loadedConfig) {
             timeoutMs: QUOTA_CHECK_TIMEOUT_MS
         }),
         persistTokenRefreshFn: persistTokenRefreshForConfig,
+        persistQuotaHistoryFn: configs => writeQuotaHistoryFile(QUOTA_HISTORY_FILE, configs, {
+            now: getCurrentTimestamp,
+        }),
         log,
         warn,
         now: getCurrentTimestamp
@@ -864,6 +901,26 @@ function serializeAccountStatus(accountStatus) {
         last_checked_at: accountStatus.lastCheckedAt,
         reason: accountStatus.reason,
         last_error: accountStatus.lastError,
+        last_selection_reason: accountStatus.lastSelectionReason,
+        last_selected_at: accountStatus.lastSelectedAt,
+        quota_history: Array.isArray(accountStatus.quotaHistory)
+            ? accountStatus.quotaHistory.map(sample => ({
+                at: sample.at,
+                remaining_percent: sample.remainingPercent,
+                reset_at: sample.resetAt,
+                reason: sample.reason,
+                available: sample.available,
+            }))
+            : [],
+        weekly_quota_history: Array.isArray(accountStatus.weeklyQuotaHistory)
+            ? accountStatus.weeklyQuotaHistory.map(sample => ({
+                at: sample.at,
+                remaining_percent: sample.remainingPercent,
+                reset_at: sample.resetAt,
+                reason: sample.reason,
+                available: sample.available,
+            }))
+            : [],
         runtime_summary: accountStatus.runtimeSummary,
         summary_line: accountStatus.summaryLine,
     };
@@ -881,6 +938,7 @@ function buildConfigAdminResponse() {
         runtime_port: Number(runtimePort),
         file_port: currentParsedConfig.port ?? null,
         proxy_port: currentParsedConfig.proxy_port ?? null,
+        routing_preference: resolveRoutingPreference(currentParsedConfig),
         apikeys: configuredApiKeys,
         apikey_required: configuredApiKeys.length > 0,
         claude_code: currentParsedConfig.claude_code ?? null,
@@ -1313,6 +1371,10 @@ function proxyRequest(req, res, config, body, originalUrl, options = {}) {
 
             error('代理请求失败:', err.message);
             if (!res.headersSent) {
+                if (sendResponsesClientVisibleError(res, 400, err.message)) {
+                    return;
+                }
+
                 const gatewayStatusCode = getGatewayStatusCode(err);
                 res.status(gatewayStatusCode).json({
                     error: gatewayStatusCode === 504 ? 'Gateway Timeout' : 'Bad Gateway',
@@ -1339,7 +1401,7 @@ function proxyRequest(req, res, config, body, originalUrl, options = {}) {
             const inspection = await inspectResponsesUpstreamForFailover(response, statusCode, response.headers);
 
             if (inspection.action === 'retry') {
-                warn(`responses 自动切号: #${config.index + 1} ${config.description} (${inspection.classification.retrySource}:${inspection.classification.retryKey})`);
+                warn(`responses 自动切号: ${formatAccountLabel(config)} (${inspection.classification.retrySource}:${inspection.classification.retryKey})`);
                 const nextConfig = accountManager.markConfigUnavailable(config, inspection.classification.reason, {
                     lastError: `${inspection.classification.retrySource}:${inspection.classification.retryKey}`,
                     switchReason: 'responses_failover',
@@ -1388,6 +1450,24 @@ function proxyRequest(req, res, config, body, originalUrl, options = {}) {
             }
         }
 
+        if (
+            isResponsesPath(req.url) &&
+            statusCode === 400 &&
+            !isInspectableResponsesEventStream(response.headers)
+        ) {
+            const bodyBuffer = await consumeResponseBody(response);
+            const bodyText = decodeResponseBody(bodyBuffer, response.headers['content-encoding']);
+
+            if (sendResponsesClientVisibleError(res, statusCode, bodyText)) {
+                return;
+            }
+
+            writeBufferedUpstreamResponse(res, statusCode, response.headers, bodyBuffer);
+            headersApplied = true;
+            responseFinished = true;
+            return;
+        }
+
         startForwardingResponse(response, statusCode, response.headers);
     }).catch(err => {
         if (requestClosed) {
@@ -1396,6 +1476,10 @@ function proxyRequest(req, res, config, body, originalUrl, options = {}) {
 
         error('代理请求失败:', err.message);
         if (!headersApplied && !res.headersSent) {
+            if (sendResponsesClientVisibleError(res, 400, err.message)) {
+                return;
+            }
+
             const statusCode = getGatewayStatusCode(err);
             res.status(statusCode).json({
                 error: statusCode === 504 ? 'Gateway Timeout' : 'Bad Gateway',
@@ -1580,6 +1664,10 @@ app.get('/config-admin.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'config-admin.js'));
 });
 
+app.get('/vendor/echarts.min.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'node_modules', 'echarts', 'dist', 'echarts.min.js'));
+});
+
 app.use('/admin', requireAdminAuthToken);
 app.use('/admin/api', express.json({ limit: '1mb' }));
 
@@ -1588,6 +1676,7 @@ app.get('/admin/configs', (req, res) => {
 });
 
 app.get('/admin/configs/v2', (req, res) => {
+    res.set('Cache-Control', 'no-store');
     res.sendFile(path.join(__dirname, 'public', 'codex-accounts.html'));
 });
 
@@ -1597,6 +1686,24 @@ app.get('/admin/api/configs', (req, res) => {
     } catch (err) {
         res.status(500).json({
             error: '读取配置失败',
+            details: err.message
+        });
+    }
+});
+
+app.get('/admin/api/logs', (req, res) => {
+    try {
+        const limit = normalizeLineLimit(req.query && req.query.limit, 160);
+        const snapshot = readRecentLogContent(LOG_FILE, limit);
+
+        res.json({
+            ...snapshot,
+            limit,
+            path: path.basename(LOG_FILE),
+        });
+    } catch (err) {
+        res.status(500).json({
+            error: '读取日志失败',
             details: err.message
         });
     }
@@ -1670,7 +1777,6 @@ app.patch('/admin/api/configs/:index', async (req, res) => {
         const parsed = readParsedConfigFile(CONFIG_FILE);
         const targetIndex = parseConfigIndex(req.params.index);
         const body = req.body && typeof req.body === 'object' ? req.body : {};
-        const alias = typeof body.alias === 'string' ? body.alias.trim() : '';
         const currentItem = parsed.configs[targetIndex];
 
         if (!currentItem) {
@@ -1679,16 +1785,34 @@ app.patch('/admin/api/configs/:index', async (req, res) => {
 
         const nextItem = {
             ...currentItem,
-            alias,
         };
 
+        if (Object.prototype.hasOwnProperty.call(body, 'alias')) {
+            nextItem.alias = typeof body.alias === 'string' ? body.alias.trim() : '';
+        }
+
+        const hasAutoSwitchDisabled = Object.prototype.hasOwnProperty.call(body, 'auto_switch_disabled');
+        if (hasAutoSwitchDisabled) {
+            if (typeof body.auto_switch_disabled !== 'boolean') {
+                throw new ConfigEditorError('auto_switch_disabled 必须是布尔值');
+            }
+
+            nextItem.auto_switch_disabled = body.auto_switch_disabled;
+        }
+
         const nextParsed = updateConfigItem(parsed, targetIndex, nextItem);
-        persistConfigWithoutRuntimeReload(nextParsed);
+        if (hasAutoSwitchDisabled) {
+            await persistAndReloadConfig(nextParsed, 'admin_update_config', {
+                skipQuotaRefresh: true
+            });
+        } else {
+            persistConfigWithoutRuntimeReload(nextParsed);
+        }
         res.status(200).json(buildConfigAdminResponse());
     } catch (err) {
         const statusCode = err instanceof ConfigEditorError ? 400 : 500;
         res.status(statusCode).json({
-            error: statusCode === 400 ? '配置别名更新失败' : '配置更新失败',
+            error: statusCode === 400 ? '配置更新失败' : '配置更新失败',
             details: err.message
         });
     }
@@ -1772,7 +1896,7 @@ app.post('/admin/api/settings', async (req, res) => {
         const settings = {};
         const body = req.body && typeof req.body === 'object' ? req.body : {};
 
-        for (const field of ['port', 'proxy_port', 'responses']) {
+        for (const field of ['port', 'proxy_port', 'routing_preference', 'responses']) {
             if (Object.prototype.hasOwnProperty.call(body, field)) {
                 settings[field] = body[field];
             }

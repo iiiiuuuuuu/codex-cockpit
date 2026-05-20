@@ -18,6 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "echarts": "^6.1.0",
     "express": "^4.21.2",
     "http-proxy": "^1.18.1"
   }

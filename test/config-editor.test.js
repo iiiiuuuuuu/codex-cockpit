@@ -230,6 +230,36 @@ test('updateConfigItem overwrites editable fields but keeps unknown keys on the 
   });
 });
 
+test('updateConfigItem normalizes auto switch disabled flags', () => {
+  const parsed = createTokenConfig({
+    configs: [
+      {
+        access_token: 'token-1',
+        account_id: 'account-1',
+        description: 'primary',
+      },
+    ],
+  });
+
+  const disabled = updateConfigItem(parsed, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    auto_switch_disabled: true,
+  });
+
+  assert.equal(disabled.configs[0].auto_switch_disabled, true);
+
+  const enabled = updateConfigItem(disabled, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    auto_switch_disabled: false,
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(enabled.configs[0], 'auto_switch_disabled'), false);
+});
+
 test('deleteConfigItem allows removing the last remaining config', () => {
   const next = deleteConfigItem(createTokenConfig(), 0);
 
@@ -271,6 +301,24 @@ test('updateConfigSettings normalizes service port and proxy port settings', () 
 
   assert.equal(clearedProxy.port, 3010);
   assert.equal(clearedProxy.proxy_port, undefined);
+});
+
+test('updateConfigSettings normalizes routing preference', () => {
+  const next = updateConfigSettings(createTokenConfig(), {
+    routing_preference: 'apikey_first',
+  });
+
+  assert.equal(next.routing_preference, 'apikey_first');
+
+  assert.throws(() => {
+    updateConfigSettings(createTokenConfig(), {
+      routing_preference: 'apikey-random',
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /routing_preference 仅支持/);
+    return true;
+  });
 });
 
 test('updateConfigSettings rejects invalid port settings', () => {

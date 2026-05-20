@@ -25,7 +25,23 @@ function getRuntimeConfigIdentity(config) {
 }
 
 function cloneRuntime(runtime) {
-    return runtime && typeof runtime === 'object' ? { ...runtime } : runtime;
+    if (!runtime || typeof runtime !== 'object') {
+        return runtime;
+    }
+
+    return {
+        ...runtime,
+        quotaHistory: Array.isArray(runtime.quotaHistory)
+            ? runtime.quotaHistory.map(item => (
+                item && typeof item === 'object' ? { ...item } : item
+            ))
+            : [],
+        weeklyQuotaHistory: Array.isArray(runtime.weeklyQuotaHistory)
+            ? runtime.weeklyQuotaHistory.map(item => (
+                item && typeof item === 'object' ? { ...item } : item
+            ))
+            : []
+    };
 }
 
 function clampInitialActiveIndex(index, configsLength) {

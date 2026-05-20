@@ -1,4 +1,11 @@
 const { requestBuffered } = require('./upstream-request');
+const { formatAccountLabel } = require('./account-label');
+const {
+  PRIMARY_QUOTA_HISTORY_WINDOW_MS,
+  WEEKLY_QUOTA_HISTORY_WINDOW_MS,
+} = require('./quota-history-store');
+
+const QUOTA_HISTORY_MIN_SAMPLE_INTERVAL_MS = 30 * 1000;
 
 /**
  * 封装账号状态、额度刷新和活动账号切换逻辑。
@@ -12,11 +19,13 @@ function createAccountManager(options) {
     quotaCheckIntervalMs,
     minRemainingPercent,
     minWeeklyRemainingPercent = 1,
+    routingPreference = 'token_first',
     buildAuthHeadersForConfig,
     requestBufferedFn = requestBuffered,
     shouldUseQuotaMonitoring,
     refreshTokenFn = null,
     persistTokenRefreshFn = async () => {},
+    persistQuotaHistoryFn = () => {},
     log,
     warn,
     now,
@@ -32,7 +41,7 @@ function createAccountManager(options) {
    * 生成日志里使用的账号标识。
    */
   function getAccountLabel(config) {
-    return `#${config.index + 1} ${config.description}`;
+    return formatAccountLabel(config);
   }
 
   /**
@@ -87,6 +96,78 @@ function createAccountManager(options) {
     return reasonMap[reason] || reason || '未知';
   }
 
+  function getQuotaHistory(config, runtimeKey) {
+    if (!config.runtime || !Array.isArray(config.runtime[runtimeKey])) {
+      config.runtime[runtimeKey] = [];
+    }
+
+    return config.runtime[runtimeKey];
+  }
+
+  function pruneQuotaHistory(config, timestamp, runtimeKey, windowMs) {
+    const history = getQuotaHistory(config, runtimeKey);
+    const cutoff = timestamp - windowMs;
+
+    while (history.length && history[0].at < cutoff) {
+      history.shift();
+    }
+
+    return history;
+  }
+
+  function recordQuotaHistorySeries(config, options) {
+    const value = config.runtime[options.valueKey];
+
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return false;
+    }
+
+    const timestamp = config.runtime.lastCheckedAt || now();
+    const history = pruneQuotaHistory(config, timestamp, options.runtimeKey, options.windowMs);
+    const lastSample = history[history.length - 1];
+    const sample = {
+      at: timestamp,
+      remainingPercent: Math.max(0, Math.min(100, value)),
+      resetAt: config.runtime[options.resetKey],
+      reason: config.runtime.reason,
+      available: config.runtime.available,
+    };
+
+    if (
+      lastSample &&
+      timestamp - lastSample.at < QUOTA_HISTORY_MIN_SAMPLE_INTERVAL_MS
+    ) {
+      history[history.length - 1] = sample;
+      return true;
+    }
+
+    history.push(sample);
+    return true;
+  }
+
+  function recordQuotaHistorySample(config) {
+    const changedPrimary = recordQuotaHistorySeries(config, {
+      runtimeKey: 'quotaHistory',
+      valueKey: 'primaryRemainingPercent',
+      resetKey: 'primaryResetAt',
+      windowMs: PRIMARY_QUOTA_HISTORY_WINDOW_MS,
+    });
+    const changedWeekly = recordQuotaHistorySeries(config, {
+      runtimeKey: 'weeklyQuotaHistory',
+      valueKey: 'secondaryRemainingPercent',
+      resetKey: 'secondaryResetAt',
+      windowMs: WEEKLY_QUOTA_HISTORY_WINDOW_MS,
+    });
+
+    return changedPrimary || changedWeekly;
+  }
+
+  function getQuotaHistorySnapshot(config, runtimeKey, windowMs) {
+    const timestamp = now();
+
+    return pruneQuotaHistory(config, timestamp, runtimeKey, windowMs).map(sample => ({ ...sample }));
+  }
+
   /**
    * 汇总单个账号当前的运行时状态，供日志打印。
    */
@@ -130,6 +211,11 @@ function createAccountManager(options) {
       secondaryResetAfterSeconds: config.runtime.secondaryResetAfterSeconds,
       lastCheckedAt: config.runtime.lastCheckedAt,
       reason: config.runtime.reason,
+      lastError: config.runtime.lastError,
+      lastSelectionReason: config.runtime.lastSelectionReason,
+      lastSelectedAt: config.runtime.lastSelectedAt,
+      quotaHistory: getQuotaHistorySnapshot(config, 'quotaHistory', PRIMARY_QUOTA_HISTORY_WINDOW_MS),
+      weeklyQuotaHistory: getQuotaHistorySnapshot(config, 'weeklyQuotaHistory', WEEKLY_QUOTA_HISTORY_WINDOW_MS),
       runtimeSummary: getRuntimeSummary(config),
       summaryLine: `${getAccountLabel(config)} | ${getRuntimeSummary(config)}`,
     };
@@ -312,6 +398,13 @@ function createAccountManager(options) {
     config.runtime.secondaryResetAt = quotaState.secondaryResetAt;
     config.runtime.secondaryResetAfterSeconds = quotaState.secondaryResetAfterSeconds;
     config.runtime.lastError = null;
+    if (recordQuotaHistorySample(config)) {
+      try {
+        persistQuotaHistoryFn(configs);
+      } catch (err) {
+        warn(`额度历史持久化失败: ${err.message}`);
+      }
+    }
   }
 
   /**
@@ -362,7 +455,23 @@ function createAccountManager(options) {
     return Boolean(config && config.runtime && config.runtime.enabled && config.runtime.available);
   }
 
+  function isAutoSwitchTarget(config) {
+    return Boolean(config) && config.autoSwitchDisabled !== true;
+  }
+
   function getConfigPriority(config) {
+    if (routingPreference === 'apikey_first') {
+      if (config && config.type === 'apikey') {
+        return 0;
+      }
+
+      if (config && config.type === 'token') {
+        return 1;
+      }
+
+      return 2;
+    }
+
     if (config && config.type === 'token') {
       return 0;
     }
@@ -374,20 +483,97 @@ function createAccountManager(options) {
     return 2;
   }
 
+  function isAllowedByRoutingPreference(config) {
+    if (!config) {
+      return false;
+    }
+
+    if (routingPreference === 'token_only') {
+      return config.type === 'token';
+    }
+
+    if (routingPreference === 'apikey_only') {
+      return config.type === 'apikey';
+    }
+
+    return true;
+  }
+
+  function isEligibleConfig(config, predicate) {
+    return isAllowedByRoutingPreference(config) && predicate(config);
+  }
+
+  function getRemainingValue(config, key) {
+    const value = config && config.runtime ? config.runtime[key] : null;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  }
+
+  function compareQuotaValue(left, right, key) {
+    const leftValue = getRemainingValue(left, key);
+    const rightValue = getRemainingValue(right, key);
+
+    if (leftValue === null && rightValue === null) {
+      return 0;
+    }
+    if (leftValue === null) {
+      return 1;
+    }
+    if (rightValue === null) {
+      return -1;
+    }
+    return rightValue - leftValue;
+  }
+
+  function compareAvailableConfig(left, right) {
+    const priorityDiff = getConfigPriority(left) - getConfigPriority(right);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    if (left.index === activeConfigIndex) {
+      return -1;
+    }
+    if (right.index === activeConfigIndex) {
+      return 1;
+    }
+
+    if (left.type === 'token') {
+      const primaryDiff = compareQuotaValue(left, right, 'primaryRemainingPercent');
+      if (primaryDiff !== 0) {
+        return primaryDiff;
+      }
+
+      const weeklyDiff = compareQuotaValue(left, right, 'secondaryRemainingPercent');
+      if (weeklyDiff !== 0) {
+        return weeklyDiff;
+      }
+    }
+
+    return left.index - right.index;
+  }
+
+  function recordActiveSelection(config, reason) {
+    if (!config || !config.runtime) {
+      return;
+    }
+
+    config.runtime.lastSelectionReason = reason;
+    config.runtime.lastSelectedAt = now();
+  }
+
   function findHighestPriorityAvailableConfigIndex(predicate = () => true) {
     let selectedIndex = -1;
     let selectedConfig = null;
 
     for (let index = 0; index < configs.length; index += 1) {
       const config = configs[index];
-      if (!predicate(config) || !isConfigAvailable(config)) {
+      if (!isAutoSwitchTarget(config) || !isEligibleConfig(config, predicate) || !isConfigAvailable(config)) {
         continue;
       }
 
       if (
         selectedIndex === -1 ||
-        getConfigPriority(config) < getConfigPriority(selectedConfig) ||
-        (getConfigPriority(config) === getConfigPriority(selectedConfig) && index === activeConfigIndex)
+        compareAvailableConfig(config, selectedConfig) < 0
       ) {
         selectedIndex = index;
         selectedConfig = config;
@@ -402,7 +588,7 @@ function createAccountManager(options) {
    */
   function getActiveConfig(predicate = () => true) {
     const currentConfig = configs[activeConfigIndex] || null;
-    return currentConfig && predicate(currentConfig) ? currentConfig : null;
+    return currentConfig && isEligibleConfig(currentConfig, predicate) ? currentConfig : null;
   }
 
   function activateConfig(index, reason = 'manual') {
@@ -412,7 +598,12 @@ function createAccountManager(options) {
 
     const previousConfig = configs[activeConfigIndex] || null;
     const nextConfig = configs[index];
+    if (!isAllowedByRoutingPreference(nextConfig)) {
+      throw new Error('当前使用偏好不允许切换到该账号模式');
+    }
+
     activeConfigIndex = index;
+    recordActiveSelection(nextConfig, reason);
 
     if (previousConfig !== nextConfig && reason !== 'startup') {
       warn(`账号切换: ${previousConfig ? getAccountLabel(previousConfig) : 'none'} -> ${getAccountLabel(nextConfig)} (${reason})`);
@@ -485,13 +676,39 @@ function createAccountManager(options) {
     return message;
   }
 
-  function buildApiKeyProbeRequest(config) {
+  function isRetryableProbeModelError(message) {
+    const normalized = normalizeString(message).toLowerCase();
+    return normalized.includes('no available channels for model') ||
+      normalized.includes('model_not_found') ||
+      normalized.includes('model not found') ||
+      normalized.includes('model does not exist') ||
+      normalized.includes('model is not available') ||
+      normalized.includes('model not supported') ||
+      normalized.includes('unsupported model');
+  }
+
+  function getApiKeyProbeModels(config) {
+    if (Array.isArray(config.probeModels) && config.probeModels.length > 0) {
+      return config.probeModels.filter(model => normalizeString(model));
+    }
+
+    if (normalizeString(config.probeModel)) {
+      return [normalizeString(config.probeModel)];
+    }
+
+    return Array.isArray(config.support) && config.support.includes('claude')
+      ? ['claude-opus-4-7']
+      : ['gpt-5.5', 'gpt-5.4'];
+  }
+
+  function buildApiKeyProbeRequest(config, model) {
     const baseUrl = String(config.baseUrl || '').replace(/\/+$/, '');
+    const probeModel = normalizeString(model) || normalizeString(config.probeModel);
 
     if (Array.isArray(config.support) && config.support.includes('claude')) {
       const body = Buffer.from(JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 8,
+        model: probeModel || 'claude-opus-4-7',
+        max_tokens: 16,
         messages: [
           {
             role: 'user',
@@ -515,14 +732,14 @@ function createAccountManager(options) {
     }
 
     const body = Buffer.from(JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: probeModel || 'gpt-5.5',
       messages: [
         {
           role: 'user',
           content: 'ping',
         },
       ],
-      max_tokens: 8,
+      max_tokens: 16,
     }));
 
     return {
@@ -540,16 +757,34 @@ function createAccountManager(options) {
 
   async function checkApiKeyConfig(config) {
     try {
-      const result = await withQuotaCheckTimeout(requestBufferedFn({
-        ...buildApiKeyProbeRequest(config),
-        timeoutMs: quotaCheckTimeoutMs,
-        maxRedirects: 2,
-      }));
+      const probeModels = getApiKeyProbeModels(config);
+      let lastError = null;
 
-      config.runtime.available = result.statusCode >= 200 && result.statusCode < 300;
-      config.runtime.reason = config.runtime.available ? 'apikey' : 'apikey_check_failed';
+      for (let index = 0; index < probeModels.length; index += 1) {
+        const result = await withQuotaCheckTimeout(requestBufferedFn({
+          ...buildApiKeyProbeRequest(config, probeModels[index]),
+          timeoutMs: quotaCheckTimeoutMs,
+          maxRedirects: 2,
+        }));
+
+        if (result.statusCode >= 200 && result.statusCode < 300) {
+          config.runtime.available = true;
+          config.runtime.reason = 'apikey';
+          config.runtime.lastCheckedAt = now();
+          config.runtime.lastError = null;
+          return config.runtime;
+        }
+
+        lastError = extractProbeError(result);
+        if (index === probeModels.length - 1 || !isRetryableProbeModelError(lastError)) {
+          break;
+        }
+      }
+
+      config.runtime.available = false;
+      config.runtime.reason = 'apikey_check_failed';
       config.runtime.lastCheckedAt = now();
-      config.runtime.lastError = config.runtime.available ? null : extractProbeError(result);
+      config.runtime.lastError = lastError || 'API Key probe failed';
     } catch (err) {
       config.runtime.available = false;
       config.runtime.reason = 'apikey_check_failed';
@@ -597,7 +832,7 @@ function createAccountManager(options) {
   }
 
   /**
-   * 保证活动账号可用，仅当当前账号不可用时才切换。
+   * 保证活动账号可用，并按使用偏好、当前同级账号优先、额度较高优先的顺序校正。
    */
   function ensureActiveConfig(reason = 'select', predicate = () => true) {
     if (configs.length === 0) {
@@ -611,6 +846,7 @@ function createAccountManager(options) {
       if (priorityIndex !== activeConfigIndex) {
         const previousConfig = currentConfig;
         activeConfigIndex = priorityIndex;
+        recordActiveSelection(nextConfig, reason);
         if (reason !== 'startup') {
           warn(`账号切换: ${previousConfig ? getAccountLabel(previousConfig) : 'none'} -> ${getAccountLabel(nextConfig)} (${reason})`);
         }
@@ -618,7 +854,7 @@ function createAccountManager(options) {
 
       return nextConfig;
     }
-    if (currentConfig && predicate(currentConfig)) {
+    if (currentConfig && isEligibleConfig(currentConfig, predicate)) {
       warn(`没有可用账号，继续使用当前账号 ${getAccountLabel(currentConfig)} (${reason})`);
       return currentConfig;
     }
@@ -693,7 +929,7 @@ function createAccountManager(options) {
   }
 
   /**
-   * 轮询所有 token 账号额度；token 永远优先于 apikey，token 全部不可用时才使用 apikey 兜底。
+   * 轮询所有 token 账号额度，并按当前使用偏好校正活动账号。
    */
   async function refreshQuotas(reason = 'poll') {
     if (!configs.some(config => shouldUseQuotaMonitoring(config.type))) {

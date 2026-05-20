@@ -4,6 +4,7 @@ const {
     createRuntimeConfigs,
     getConfigItemType,
     normalizeApiKeySupport,
+    normalizeRoutingPreference,
 } = require('./openai-config');
 
 class ConfigEditorError extends Error {}
@@ -98,6 +99,22 @@ function normalizePortSetting(value, fieldName, options = {}) {
     return port;
 }
 
+function normalizeRoutingPreferenceSetting(value) {
+    try {
+        return normalizeRoutingPreference(value);
+    } catch (err) {
+        throw new ConfigEditorError(err.message);
+    }
+}
+
+function normalizeBooleanFlag(value, fieldName) {
+    if (typeof value !== 'boolean') {
+        throw new ConfigEditorError(`配置项 ${fieldName} 必须是布尔值`);
+    }
+
+    return value;
+}
+
 function getEditableFields(type) {
     if (type === 'apikey') {
         return ['type', 'apikey', 'base_url', 'description', 'support'];
@@ -169,8 +186,24 @@ function normalizeConfigItem(item, existingItem = {}) {
     if (type === 'apikey') {
         nextItem.type = 'apikey';
         nextItem.base_url = nextItem.base_url.replace(/\/+$/, '');
+        if (Object.prototype.hasOwnProperty.call(item, 'probe_model')) {
+            const probeModel = normalizeString(item.probe_model);
+            if (probeModel) {
+                nextItem.probe_model = probeModel;
+            } else {
+                delete nextItem.probe_model;
+            }
+        }
         if (Object.prototype.hasOwnProperty.call(item, 'support')) {
             nextItem.support = normalizeApiKeySupport(item.support);
+        }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(item, 'auto_switch_disabled')) {
+        if (normalizeBooleanFlag(item.auto_switch_disabled, 'auto_switch_disabled')) {
+            nextItem.auto_switch_disabled = true;
+        } else {
+            delete nextItem.auto_switch_disabled;
         }
     }
 
@@ -289,6 +322,10 @@ function updateConfigSettings(parsed, settings) {
         } else {
             nextParsed.proxy_port = proxyPort;
         }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(settings, 'routing_preference')) {
+        nextParsed.routing_preference = normalizeRoutingPreferenceSetting(settings.routing_preference);
     }
 
     if (Object.prototype.hasOwnProperty.call(settings, 'responses')) {
