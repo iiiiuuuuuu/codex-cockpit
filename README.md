@@ -32,25 +32,15 @@ GET  http://127.0.0.1:3009/health
 - `/v1/messages`：优先使用 `support` 包含 `claude` 的 API Key 原样转发；没有可用 Claude 上游时，会把 Claude Messages 请求转换到 token 的 Responses 链路。
 - `/wham/*`：token 配置会转到 ChatGPT wham backend-api；API Key 配置会直连它自己的 `base_url`。
 
-## 命令行启动
+## 快速开始
 
-也可以直接在仓库里运行 Node.js 版本：
+在仓库里运行 Node.js 版本：
 
 ```bash
 git clone git@github.com:iiiiuuuuuu/ai-cockpit.git
 cd ai-cockpit
 npm install
 npm start
-```
-
-常用命令：
-
-```bash
-npm start        # 启动服务
-npm run stop     # 停止服务
-npm run restart  # 重启服务
-npm run logs     # 查看最近日志
-npm test         # 运行测试
 ```
 
 第一次启动时，如果项目根目录没有 `openai.json`，会进入配置引导：
@@ -66,6 +56,62 @@ http://127.0.0.1:3009/admin/configs/v2?auth_token=auth_xxx
 ```
 
 管理后台必须带正确的 `auth_token` 访问，不要手动删掉 URL 后面的参数。
+
+## 启动方式
+
+### 命令行
+
+```bash
+npm start        # 启动服务
+npm run stop     # 停止服务
+npm run restart  # 重启服务
+npm run logs     # 查看最近日志
+npm test         # 运行测试
+```
+
+### macOS 双击脚本
+
+`scripts/mac/` 下提供了无需记命令的脚本：
+
+```text
+Launcher.command # 弹窗选择启动、重启、停止、打开管理页或日志
+Start.command    # 启动服务
+Restart.command  # 重启服务
+Stop.command     # 停止服务
+Logs.command     # 查看并持续跟随日志
+```
+
+脚本会自动定位到仓库根目录；如果首次拉下代码后还没有 `node_modules`，启动/重启脚本会先执行 `npm install`。
+
+### Chrome 插件
+
+插件目录：
+
+```text
+extensions/chrome
+```
+
+安装插件：
+
+1. 打开 `chrome://extensions/`。
+2. 开启“开发者模式”。
+3. 点击“加载已解压的扩展程序”。
+4. 选择 `extensions/chrome`。
+
+插件有两种使用模式：
+
+- 浏览器模式：只加载插件即可。可以查看状态、打开管理页、刷新额度、查看日志；前提是 ai-cockpit 服务已经启动。
+- 本机控制模式：额外运行一次 `extensions/chrome/native/Install.command`。之后可以在插件里直接点击“启动 / 重启 / 停止”。
+
+Chrome 出于安全限制，不允许扩展仅靠自身启动本机进程，所以“本机控制模式”需要安装 Native Messaging 本地宿主。这个宿主只接受 `start`、`restart`、`stop` 三个固定动作，不执行任意 shell 命令。
+
+插件 ID 已通过 manifest key 固定为：
+
+```text
+gcfmefhkgemdoeodobelhijffmdoaiap
+```
+
+因此新电脑上运行 `Install.command` 时不需要复制扩展 ID。
 
 ## 第一次配置
 

@@ -1,0 +1,3 @@
+#!/bin/bash
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+exec "/opt/homebrew/Cellar/node/25.8.2/bin/node" "/Users/liujingping137365/workspace/ai-cockpit/extensions/chrome/native/host.js"

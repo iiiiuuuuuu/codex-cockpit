@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ai-cockpit</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ai-cockpit</p>
+          <h1>本地服务</h1>
+        </div>
+        <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+      </header>
+
+      <section class="summary">
+        <div>
+          <span>状态</span>
+          <strong id="statusText">未检查</strong>
+        </div>
+        <div>
+          <span>活动账号</span>
+          <strong id="activeAccountText">-</strong>
+          <small id="activeAccountMeta">-</small>
+        </div>
+        <div>
+          <span>额度</span>
+          <strong id="quotaText">-</strong>
+          <small id="quotaMeta">-</small>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button class="primary" id="openAdminBtn" type="button">打开管理页</button>
+        <button id="checkBtn" type="button">检查状态</button>
+        <button id="refreshBtn" type="button">刷新额度</button>
+        <button id="logsBtn" type="button">查看日志</button>
+        <button id="startBtn" type="button">启动</button>
+        <button id="stopBtn" type="button">停止</button>
+        <button id="restartBtn" type="button">重启</button>
+        <button id="copyRestartBtn" type="button">复制重启命令</button>
+      </section>
+
+      <p class="message" id="message"></p>
+
+      <details class="settings">
+        <summary>连接设置</summary>
+        <div class="settings-fields">
+          <label>
+            <span>服务地址</span>
+            <input id="baseUrlInput" autocomplete="off" spellcheck="false" />
+          </label>
+          <label>
+            <span>管理 auth_token</span>
+            <input id="authTokenInput" autocomplete="off" spellcheck="false" />
+          </label>
+          <label>
+            <span>仓库路径</span>
+            <input id="repoPathInput" autocomplete="off" spellcheck="false" />
+          </label>
+          <button id="saveBtn" type="button">保存配置</button>
+        </div>
+      </details>
+
+      <details class="log-panel" id="logPanel" hidden>
+        <summary>最近日志</summary>
+        <pre id="output"></pre>
+      </details>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

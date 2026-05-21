@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "ai-cockpit 控制台",
+  "description": "从 Chrome 工具栏查看 ai-cockpit 状态、打开管理页、刷新额度和查看日志。",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu+pNSpl8MoR2IMknB0hLHSZqATalzwrOHv9uj3VD5HWHjw19mUyqGJ5cr3Rd6K8YW7ntub+NWAwOYdk4uZfa5L/HsNjhUDjNOyU7bqWQE1SR89H8tzokUfBNgqKUo4kX6NHP7MQWJVRM9EIU2MXvYBMOx5X+/fMhe0yt2LCJv6+iXcRIYiw8aVujYAKSRP2QQm07VOYZvGPt+FVkPIVFr0hOslVyXaY5ey6I0vHDKaO8IyY/nf5LJQfj5DGlrcFWz/vRhX5GwEu7d4m2z7IFxKFSD/L9kS06fGTRFeoUwL5fvAs6jcgCQ+wtWoPmFrDK3zfwEtnzRfMadhiZG/sV1wIDAQAB",
+  "action": {
+    "default_title": "ai-cockpit",
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "clipboardWrite",
+    "nativeMessaging",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:*/*",
+    "http://localhost:*/*"
+  ]
+}
