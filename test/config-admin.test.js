@@ -196,15 +196,69 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /编辑账号信息/);
   assert.match(html, /id="accountPriceInput"/);
   assert.match(html, /price_yuan/);
+  assert.match(html, /id="usageStartInput"/);
+  assert.match(html, /id="accountStartedAtInput"/);
+  assert.match(html, /type="datetime-local"/);
+  assert.match(html, /started_at/);
+  assert.match(html, /已使用/);
+  assert.match(html, /已使用 <1 小时/);
+  assert.match(html, /已使用 \$\{displayHours\} 小时/);
+  assert.match(html, /已使用 \$\{Math\.floor\(days\)\} 天/);
+  assert.doesNotMatch(html, /已使用 <1 天/);
+  assert.doesNotMatch(html, /Math\.floor\(days \* 10\) \/ 10/);
+  assert.match(html, /status-chip current/);
   assert.match(html, /pill price/);
+  assert.match(html, /data-account-grid-columns="auto"/);
+  assert.match(html, /data-account-grid-columns="5"/);
+  assert.match(html, /id="accountLayoutMenuButton"/);
+  assert.match(html, /id="accountLayoutMenu"/);
+  assert.match(html, /id="accountLayoutCurrentLabel">每行 自动<\/span>/);
+  assert.match(html, /role="menuitemradio"/);
+  assert.match(html, /getAccountGridColumnsLabel/);
+  assert.match(html, /setAccountLayoutMenuOpen/);
+  assert.match(html, /routing-rules \{\s+display: flex;[\s\S]*?width: 100%;/);
+  assert.ok(
+    html.indexOf('class="account-layout-bar"') < html.indexOf('id="quotaOverviewButton"'),
+    'account layout controls should appear with the page actions before quota overview',
+  );
+  assert.ok(
+    html.indexOf('id="quotaOverviewButton"') < html.indexOf('class="routing-rules"'),
+    'account layout controls should stay in the section header instead of the account grid area',
+  );
+  assert.match(html, /ai-cockpit\.accountGridColumns/);
+  assert.match(html, /accounts-grid\[data-columns="2"\] \.account-card/);
+  assert.match(html, /min-height: 304px/);
+  assert.match(html, /accounts-grid\[data-columns="2"\] \.card-action/);
+  assert.match(html, /width: 30px/);
+  assert.match(html, /accounts-grid\[data-columns="2"\] \.quota-block/);
+  assert.match(html, /gap: 16px/);
+  assert.doesNotMatch(html, /align-content: space-between/);
+  assert.match(html, /accounts-grid\[data-columns="2"\] \.account-name/);
+  assert.match(html, /font-size: 15px/);
+  assert.match(html, /accounts-grid\[data-columns="3"\] \.card-action/);
+  assert.match(html, /width: 28px/);
+  assert.match(html, /gap: 14px/);
+  assert.match(html, /accounts-grid\[data-columns="3"\] \.account-name/);
+  assert.match(html, /font-size: 14px/);
+  assert.match(html, /accounts-grid\[data-columns="5"\] \.account-card/);
+  assert.match(html, /min-height: 202px/);
+  assert.match(html, /accounts-grid\[data-columns="5"\] \.account-name/);
+  assert.match(html, /font-size: 11\.5px/);
+  assert.match(html, /accounts-grid\[data-columns="5"\] \.card-action/);
+  assert.match(html, /width: 22px/);
+  assert.match(html, /accounts-grid\[data-columns="5"\] \.api-key-note\.compact/);
+  assert.match(html, /font-size: 9\.5px/);
+  assert.doesNotMatch(html, /data-action="toggle-card-size"/);
   assert.match(html, /只刷新此账号额度/);
   assert.match(html, /mergeSingleRefreshSnapshot/);
   assert.match(html, /api-key-note compact/);
   assert.match(html, /API Key 上游不做 Codex 额度检查；点击刷新会测试上游是否可用，GPT 默认先试 gpt-5\.5，再试 gpt-5\.4。/);
   assert.match(html, /id="quotaOverviewButton"/);
-  assert.match(html, /Token 额度趋势/);
+  assert.match(html, /查看 Token 额度总览/);
+  assert.match(html, />额度总览<\/span>/);
   assert.match(html, /quota-overview-trigger/);
   assert.match(html, /Token 额度总览/);
+  assert.match(html, /对比所有 Token 账号的 5 小时与周额度走势。/);
   assert.match(html, /renderQuotaOverviewChart/);
   assert.match(html, /data-action="quota-overview-mode"/);
   assert.match(html, /data-action="quota-overview-range"/);
@@ -463,6 +517,78 @@ test('buildConfigItemFromForm keeps token mode as pasted AuthSession JSON', () =
   );
 });
 
+test('buildConfigItemFromForm adds started_at to token configs when provided', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'token',
+      tokenRawJson: JSON.stringify({
+        user: {
+          email: 'user@example.com',
+        },
+        account: {
+          id: 'account-1',
+        },
+        accessToken: 'token-1',
+      }),
+      startedAt: '2026-05-01',
+    }),
+    {
+      user: {
+        email: 'user@example.com',
+      },
+      account: {
+        id: 'account-1',
+      },
+      accessToken: 'token-1',
+      started_at: '2026-05-01T00:00:00',
+    },
+  );
+});
+
+test('buildConfigItemFromForm adds started_at with hour and minute to token configs', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'token',
+      tokenRawJson: JSON.stringify({
+        account: {
+          id: 'account-1',
+        },
+        accessToken: 'token-1',
+      }),
+      startedAt: '2026-05-01T09:30',
+    }),
+    {
+      account: {
+        id: 'account-1',
+      },
+      accessToken: 'token-1',
+      started_at: '2026-05-01T09:30:00',
+    },
+  );
+});
+
+test('buildConfigItemFromForm accepts started_at with seconds and stores second precision', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'token',
+      tokenRawJson: JSON.stringify({
+        account: {
+          id: 'account-1',
+        },
+        accessToken: 'token-1',
+      }),
+      startedAt: '2026-05-01T09:30:45',
+    }),
+    {
+      account: {
+        id: 'account-1',
+      },
+      accessToken: 'token-1',
+      started_at: '2026-05-01T09:30:45',
+    },
+  );
+});
+
 test('buildConfigItemFromForm builds an apikey config from normal form fields', () => {
   assert.deepEqual(
     buildConfigItemFromForm({
@@ -480,6 +606,57 @@ test('buildConfigItemFromForm builds an apikey config from normal form fields', 
       support: ['gpt', 'claude'],
     },
   );
+});
+
+test('buildConfigItemFromForm adds started_at to apikey configs when provided', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'apikey',
+      apiKey: 'sk-third-party',
+      baseUrl: 'https://api.example.com/v1',
+      support: ['gpt'],
+      startedAt: '2026-05-01',
+    }),
+    {
+      type: 'apikey',
+      apikey: 'sk-third-party',
+      base_url: 'https://api.example.com/v1',
+      description: '',
+      support: ['gpt'],
+      started_at: '2026-05-01T00:00:00',
+    },
+  );
+});
+
+test('buildConfigItemFromForm adds started_at with hour and minute to apikey configs', () => {
+  assert.deepEqual(
+    buildConfigItemFromForm({
+      mode: 'apikey',
+      apiKey: 'sk-third-party',
+      baseUrl: 'https://api.example.com/v1',
+      support: ['gpt'],
+      startedAt: '2026-05-01T09:30',
+    }),
+    {
+      type: 'apikey',
+      apikey: 'sk-third-party',
+      base_url: 'https://api.example.com/v1',
+      description: '',
+      support: ['gpt'],
+      started_at: '2026-05-01T09:30:00',
+    },
+  );
+});
+
+test('buildConfigItemFromForm rejects invalid started_at values', () => {
+  assert.throws(() => {
+    buildConfigItemFromForm({
+      mode: 'apikey',
+      apiKey: 'sk-third-party',
+      baseUrl: 'https://api.example.com/v1',
+      startedAt: '2026-02-31',
+    });
+  }, /开始使用时间/);
 });
 
 test('buildConfigItemFromForm defaults apikey support to gpt when nothing is selected', () => {

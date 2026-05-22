@@ -205,6 +205,43 @@
     return normalized.length ? normalized : ['gpt'];
   }
 
+  function normalizeDateTimeMinute(value, label) {
+    const text = normalizeText(value).replace(' ', 'T');
+    if (!text) {
+      return '';
+    }
+
+    const match = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) {
+      throw new Error(`${label} 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 日期时间`);
+    }
+
+    const [, yearText, monthText, dayText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    if (
+      hour > 23 ||
+      minute > 59 ||
+      second > 59 ||
+      Number.isNaN(date.getTime()) ||
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day ||
+      date.getUTCHours() !== hour ||
+      date.getUTCMinutes() !== minute ||
+      date.getUTCSeconds() !== second
+    ) {
+      throw new Error(`${label} 必须是有效日期时间`);
+    }
+
+    return `${yearText}-${monthText}-${dayText}T${hourText}:${minuteText}:${secondText}`;
+  }
+
   function parseJsonObject(rawText, label) {
     let parsed;
     try {
@@ -223,9 +260,14 @@
   function buildConfigItemFromForm(values) {
     const formValues = values && typeof values === 'object' ? values : {};
     const mode = normalizeText(formValues.mode || 'token').toLowerCase();
+    const startedAt = normalizeDateTimeMinute(formValues.startedAt, '开始使用时间');
 
     if (mode === 'token') {
-      return parseJsonObject(formValues.tokenRawJson, 'AuthSession JSON');
+      const tokenConfig = parseJsonObject(formValues.tokenRawJson, 'AuthSession JSON');
+      if (startedAt) {
+        tokenConfig.started_at = startedAt;
+      }
+      return tokenConfig;
     }
 
     if (mode !== 'apikey') {
@@ -243,13 +285,19 @@
       throw new Error('apikey 模式下请填写 Base URL');
     }
 
-    return {
+    const apiKeyConfig = {
       type: 'apikey',
       apikey,
       base_url: baseUrl,
       description: normalizeText(formValues.description),
       support: normalizeSupport(formValues.support),
     };
+
+    if (startedAt) {
+      apiKeyConfig.started_at = startedAt;
+    }
+
+    return apiKeyConfig;
   }
 
   function getConfigGuideContent(snapshot) {

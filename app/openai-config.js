@@ -137,6 +137,38 @@ function normalizeCodexSpeedMode(value) {
     return mode;
 }
 
+function isValidStartedAt(value) {
+    if (typeof value !== 'string') {
+        return false;
+    }
+
+    const normalized = value.trim().replace(' ', 'T');
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) {
+        return false;
+    }
+
+    const [, yearText, monthText, dayText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+    return hour <= 23 &&
+        minute <= 59 &&
+        second <= 59 &&
+        !Number.isNaN(date.getTime()) &&
+        date.getUTCFullYear() === year &&
+        date.getUTCMonth() === month - 1 &&
+        date.getUTCDate() === day &&
+        date.getUTCHours() === hour &&
+        date.getUTCMinutes() === minute &&
+        date.getUTCSeconds() === second;
+}
+
 function parseOpenAiConfigFile(raw) {
     const parsed = JSON.parse(raw);
 
@@ -195,6 +227,10 @@ function parseOpenAiConfigFile(raw) {
             ) {
                 throw new Error('配置项 price_yuan 必须是非负金额，最多保留 2 位小数');
             }
+        }
+
+        if (config.started_at !== undefined && !isValidStartedAt(config.started_at)) {
+            throw new Error('配置项 started_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 有效日期时间');
         }
     }
 

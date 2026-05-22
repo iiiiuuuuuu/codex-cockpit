@@ -116,6 +116,33 @@ test('buildImportedConfigItem preserves refresh_token from auth session JSON', (
   });
 });
 
+test('buildImportedConfigItem preserves token started_at from auth session JSON', () => {
+  const imported = buildImportedConfigItem('token', {
+    user: {
+      email: 'user@example.com',
+    },
+    account: {
+      id: 'account-from-session',
+    },
+    accessToken: 'access-token-from-session',
+    started_at: '2026-05-01',
+  });
+
+  assert.equal(imported.started_at, '2026-05-01');
+});
+
+test('buildImportedConfigItem preserves token started_at with hour and minute', () => {
+  const imported = buildImportedConfigItem('token', {
+    account: {
+      id: 'account-from-session',
+    },
+    accessToken: 'access-token-from-session',
+    started_at: '2026-05-01T09:30',
+  });
+
+  assert.equal(imported.started_at, '2026-05-01T09:30');
+});
+
 test('buildImportedConfigItem supports direct credential JSON with email and JWT client_id', () => {
   const imported = buildImportedConfigItem('token', {
     access_token: createFakeJwt({
@@ -294,6 +321,65 @@ test('updateConfigItem normalizes price_yuan and hides zero values', () => {
   });
 
   assert.equal(Object.prototype.hasOwnProperty.call(cleared.configs[0], 'price_yuan'), false);
+});
+
+test('updateConfigItem normalizes started_at and allows clearing it', () => {
+  const parsed = createTokenConfig();
+
+  const dated = updateConfigItem(parsed, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    started_at: '2026-05-01',
+  });
+
+  assert.equal(dated.configs[0].started_at, '2026-05-01T00:00:00');
+
+  const cleared = updateConfigItem(dated, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    started_at: '',
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(cleared.configs[0], 'started_at'), false);
+});
+
+test('updateConfigItem normalizes started_at with hour and minute', () => {
+  const next = updateConfigItem(createTokenConfig(), 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    started_at: '2026-05-01T09:30',
+  });
+
+  assert.equal(next.configs[0].started_at, '2026-05-01T09:30:00');
+});
+
+test('updateConfigItem accepts started_at with seconds and stores second precision', () => {
+  const next = updateConfigItem(createTokenConfig(), 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    started_at: '2026-05-01T09:30:45',
+  });
+
+  assert.equal(next.configs[0].started_at, '2026-05-01T09:30:45');
+});
+
+test('updateConfigItem rejects invalid started_at', () => {
+  assert.throws(() => {
+    updateConfigItem(createTokenConfig(), 0, {
+      access_token: 'token-1',
+      account_id: 'account-1',
+      description: 'primary',
+      started_at: '2026-02-31',
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /started_at/);
+    return true;
+  });
 });
 
 test('updateConfigItem rejects invalid price_yuan', () => {

@@ -152,6 +152,39 @@ function normalizePriceYuan(value) {
     return Number(price.toFixed(2));
 }
 
+function normalizeStartedAt(value) {
+    const normalized = normalizeString(value).replace(' ', 'T');
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (!match) {
+        throw new ConfigEditorError('配置项 started_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 日期时间');
+    }
+
+    const [, yearText, monthText, dayText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+    const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+    if (
+        hour > 23 ||
+        minute > 59 ||
+        second > 59 ||
+        Number.isNaN(date.getTime()) ||
+        date.getUTCFullYear() !== year ||
+        date.getUTCMonth() !== month - 1 ||
+        date.getUTCDate() !== day ||
+        date.getUTCHours() !== hour ||
+        date.getUTCMinutes() !== minute ||
+        date.getUTCSeconds() !== second
+    ) {
+        throw new ConfigEditorError('配置项 started_at 必须是有效日期时间');
+    }
+
+    return `${yearText}-${monthText}-${dayText}T${hourText}:${minuteText}:${secondText}`;
+}
+
 function getEditableFields(type) {
     if (type === 'apikey') {
         return ['type', 'apikey', 'base_url', 'description', 'support'];
@@ -265,6 +298,14 @@ function normalizeConfigItem(item, existingItem = {}) {
         }
     }
 
+    if (Object.prototype.hasOwnProperty.call(item, 'started_at')) {
+        if (item.started_at === null || item.started_at === undefined || normalizeString(item.started_at) === '') {
+            delete nextItem.started_at;
+        } else {
+            nextItem.started_at = normalizeStartedAt(item.started_at);
+        }
+    }
+
     return nextItem;
 }
 
@@ -315,6 +356,10 @@ function buildImportedConfigItem(typeOrItem, maybeItem) {
         account_id: accountId,
         description,
     };
+
+    if (Object.prototype.hasOwnProperty.call(item, 'started_at')) {
+        imported.started_at = item.started_at;
+    }
 
     if (refreshToken) {
         imported.refresh_token = refreshToken;
