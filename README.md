@@ -52,7 +52,7 @@ npm start
 启动成功后，日志会打印管理后台地址，类似：
 
 ```text
-http://127.0.0.1:3009/admin/configs/v2?auth_token=auth_xxx
+http://127.0.0.1:3009/admin/configs?auth_token=auth_xxx
 ```
 
 管理后台必须带正确的 `auth_token` 访问，不要手动删掉 URL 后面的参数。

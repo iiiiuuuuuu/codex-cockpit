@@ -1020,7 +1020,7 @@ function createMissingConfigResponse(res) {
 }
 
 function buildAdminPath() {
-    return `/admin/configs/v2?auth_token=${encodeURIComponent(getConfiguredAuthToken(currentParsedConfig))}`;
+    return `/admin/configs?auth_token=${encodeURIComponent(getConfiguredAuthToken(currentParsedConfig))}`;
 }
 
 function createProxyUnauthorizedResponse(res) {
@@ -1666,6 +1666,30 @@ app.get('/config-admin.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'config-admin.js'));
 });
 
+app.get('/admin-console/styles.css', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin-console', 'styles.css'));
+});
+
+const ADMIN_CONSOLE_SCRIPT_FILES = new Set([
+    'bootstrap.js',
+    'account-format.js',
+    'quota-charts.js',
+    'account-cards.js',
+    'settings-logs.js',
+    'account-actions.js',
+    'events.js'
+]);
+
+app.get('/admin-console/js/:scriptFile', (req, res) => {
+    const scriptFile = req.params.scriptFile;
+    if (!ADMIN_CONSOLE_SCRIPT_FILES.has(scriptFile)) {
+        res.status(404).send('Not Found');
+        return;
+    }
+
+    res.sendFile(path.join(__dirname, 'public', 'admin-console', 'js', scriptFile));
+});
+
 app.get('/vendor/echarts.min.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'node_modules', 'echarts', 'dist', 'echarts.min.js'));
 });
@@ -1673,15 +1697,22 @@ app.get('/vendor/echarts.min.js', (req, res) => {
 app.use('/admin', requireAdminAuthToken);
 app.use('/admin/api', express.json({ limit: '1mb' }));
 
-app.get('/admin/configs', (req, res) => {
+function getOriginalQueryString(req) {
     const queryIndex = req.originalUrl.indexOf('?');
-    const queryString = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
-    res.redirect(308, `/admin/configs/v2${queryString}`);
+    return queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+}
+
+app.get('/admin', (req, res) => {
+    res.redirect(308, `/admin/configs${getOriginalQueryString(req)}`);
+});
+
+app.get('/admin/configs', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.sendFile(path.join(__dirname, 'public', 'admin-console', 'index.html'));
 });
 
 app.get('/admin/configs/v2', (req, res) => {
-    res.set('Cache-Control', 'no-store');
-    res.sendFile(path.join(__dirname, 'public', 'codex-accounts.html'));
+    res.redirect(308, `/admin/configs${getOriginalQueryString(req)}`);
 });
 
 app.get('/admin/api/configs', (req, res) => {

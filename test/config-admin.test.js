@@ -27,105 +27,52 @@ const {
   buildProxyAccessInfo,
 } = require('../public/config-admin.js');
 
-test('config admin hides the responses settings module', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
-  const start = html.indexOf('<div id="responsesSettingsSection" class="hidden-settings" hidden>');
-  const end = html.indexOf('</main>', start);
-  const section = start >= 0 && end > start ? html.slice(start, end) : '';
+function readPublicFile(filename) {
+  return fs.readFileSync(path.join(__dirname, '..', 'public', filename), 'utf8');
+}
 
-  assert.ok(section, 'responses settings section should be wrapped in a hidden container');
-  assert.match(section, /Responses 设置/);
-  assert.match(section, /这里可以配置 `\/v1\/responses` 的模型别名映射/);
-  assert.match(section, /saveResponsesSettingsButton/);
-});
+const adminConsoleScriptFiles = [
+  'bootstrap.js',
+  'account-format.js',
+  'quota-charts.js',
+  'account-cards.js',
+  'settings-logs.js',
+  'account-actions.js',
+  'events.js',
+];
 
-test('config admin shows upstream config before edit controls', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
-  const messageIndex = html.indexOf('<div id="message"');
-  const upstreamIndex = html.indexOf('<section class="panel list-panel">');
-  const consoleGridIndex = html.indexOf('<section class="console-grid">');
-  const addConfigIndex = html.indexOf('<h2 class="panel-title">新增配置项</h2>');
+function readAdminConsoleAssets() {
+  return [
+    readPublicFile(path.join('admin-console', 'index.html')),
+    readPublicFile(path.join('admin-console', 'styles.css')),
+    ...adminConsoleScriptFiles.map(fileName => readPublicFile(path.join('admin-console', 'js', fileName))),
+  ].join('\n');
+}
 
-  assert.ok(messageIndex >= 0, 'message area should be present');
-  assert.ok(upstreamIndex > messageIndex, 'upstream config should follow the message area');
-  assert.ok(consoleGridIndex > upstreamIndex, 'edit controls should appear after upstream config');
-  assert.ok(addConfigIndex > upstreamIndex, 'add config panel should appear after upstream config');
-});
-
-test('config admin exposes manual runtime config activation controls', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
-
-  assert.match(html, /data-action="activate"/);
-  assert.match(html, /\/admin\/api\/configs\/\$\{index\}\/activate/);
-  assert.match(html, /当前账号已临时切换/);
-});
-
-test('config admin keeps the upstream config column compact after adding activation controls', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
-
-  assert.match(html, /min-width:\s*1040px;/);
-  assert.match(html, /\.account-id-col,\s*\.account-id-cell\s*\{\s*width:\s*240px;\s*min-width:\s*240px;/);
-  assert.match(html, /\.account-id-cell\s*\{\s*white-space:\s*normal;\s*word-break:\s*break-word;\s*overflow-wrap:\s*anywhere;/);
-  assert.match(html, /\.action-cell\s*\{\s*width:\s*150px;\s*white-space:\s*nowrap;/);
-});
-
-test('config admin keeps all console controls after UI refresh', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'config-admin.html'), 'utf8');
-  const accessControlStart = html.indexOf('<h2 class="panel-title">访问控制</h2>');
-  const accessControlEnd = html.indexOf('<div id="responsesSettingsSection"', accessControlStart);
-  const accessControlSection = accessControlStart >= 0 && accessControlEnd > accessControlStart
-    ? html.slice(accessControlStart, accessControlEnd)
-    : '';
-
-  assert.match(html, /class="topbar"/);
-  assert.doesNotMatch(html, /id="statusSummary"/);
-  assert.match(html, /class="console-grid"/);
-  assert.match(html, /id="addApiKeyButton"/);
-  assert.match(html, /id="proxySettingsPanel"/);
-  assert.match(html, /id="servicePortInput"/);
-  assert.match(html, /id="proxyPortInput"/);
-  assert.match(html, /id="proxyV1Url"/);
-  assert.match(html, /id="saveProxySettingsButton"/);
-  assert.match(html, /代理访问地址/);
-  assert.match(html, /即时生效/);
-  assert.doesNotMatch(html, /重启 App 后完整生效/);
-  assert.match(html, /id="refreshButton"/);
-  assert.match(html, /id="testResponseButton"/);
-  assert.match(html, /id="addButton"/);
-  assert.match(html, /config_type:\s*getSelectedConfigMode\(\)/);
-  assert.match(html, /href="https:\/\/chatgpt\.com\/api\/auth\/session"/);
-  assert.match(html, /data-open-external="true"/);
-  assert.match(html, /\/admin\/api\/open-external/);
-  assert.match(html, /隐私模式登录 ChatGPT/);
-  assert.match(html, /不要退出该登录态/);
-  assert.match(html, /name="configMode" value="token"/);
-  assert.match(html, /name="configMode" value="apikey"/);
-  assert.match(html, /name="apiKeySupport" value="gpt"/);
-  assert.match(html, /name="apiKeySupport" value="claude"/);
-  assert.match(html, /data-action="activate"/);
-  assert.match(html, /data-action="delete"/);
-  assert.match(html, /data-action="delete-apikey"/);
-  assert.match(html, /可刷新/);
-  assert.ok(accessControlSection, 'access control section should be present');
-  assert.match(accessControlSection, /id="addApiKeyButton"/);
-});
-
-test('config admin v2 reuses existing admin APIs for accounts, access control, and proxy settings', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'codex-accounts.html'), 'utf8');
+test('config admin console uses a stable admin configs entry while preserving the old v2 link', () => {
+  const html = readAdminConsoleAssets();
   const server = fs.readFileSync(path.join(__dirname, '..', 'openai.js'), 'utf8');
 
-  assert.match(server, /app\.get\('\/admin\/configs\/v2'/);
+  assert.match(server, /app\.get\('\/admin'/);
   assert.match(server, /app\.get\('\/admin\/configs'/);
-  assert.match(server, /res\.redirect\(308, `\/admin\/configs\/v2\$\{queryString\}`\)/);
-  assert.match(server, /return `\/admin\/configs\/v2\?auth_token=/);
+  assert.match(server, /app\.get\('\/admin\/configs\/v2'/);
+  assert.match(server, /res\.redirect\(308, `\/admin\/configs\$\{getOriginalQueryString\(req\)\}`\)/);
+  assert.match(server, /return `\/admin\/configs\?auth_token=/);
+  assert.match(server, /'admin-console', 'index\.html'/);
+  assert.match(server, /'admin-console', 'styles\.css'/);
+  assert.match(server, /ADMIN_CONSOLE_SCRIPT_FILES/);
+  assert.match(server, /'admin-console', 'js', scriptFile/);
   assert.match(server, /app\.patch\('\/admin\/api\/configs\/:index'/);
   assert.match(html, /<title>AI Cockpit<\/title>/);
+  assert.match(html, /<link rel="stylesheet" href="\/admin-console\/styles\.css">/);
   assert.match(html, /<h1 class="brand-title">AI Cockpit<\/h1>/);
   assert.match(html, /账号与入口管理/);
   assert.match(html, /统一管理 Token 账号、API Key 上游、访问密钥和本地代理入口。/);
   assert.match(html, />账号与密钥<\/span>/);
   assert.match(html, />新增接入<\/span>/);
   assert.match(html, /<script src="\/config-admin\.js"><\/script>/);
+  assert.match(html, /<script src="\/admin-console\/js\/bootstrap\.js"><\/script>/);
+  assert.match(html, /<script src="\/admin-console\/js\/events\.js"><\/script>/);
   assert.match(html, /buildConfigSnapshotRequest/);
   assert.match(html, /data-section-target="accountsSection"/);
   assert.match(html, /data-section-target="addAccountSection"/);
@@ -252,7 +199,7 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
   assert.match(html, /只刷新此账号额度/);
   assert.match(html, /mergeSingleRefreshSnapshot/);
   assert.match(html, /api-key-note compact/);
-  assert.match(html, /API Key 上游不做 Codex 额度检查；点击刷新会测试上游是否可用，GPT 默认先试 gpt-5\.5，再试 gpt-5\.4。/);
+  assert.match(html, /不做额度检查；点击刷新会检测 API Key 上游是否可用；默认优先用较新的 GPT 模型探测，不支持时自动降级重试。/);
   assert.match(html, /id="quotaOverviewButton"/);
   assert.match(html, /查看 Token 额度总览/);
   assert.match(html, />额度总览<\/span>/);
@@ -306,7 +253,11 @@ test('config admin v2 reuses existing admin APIs for accounts, access control, a
 });
 
 test('config admin v2 auto-dismisses ordinary messages while keeping auth errors visible', () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'codex-accounts.html'), 'utf8');
+  const html = [
+    readPublicFile(path.join('admin-console', 'js', 'bootstrap.js')),
+    readPublicFile(path.join('admin-console', 'js', 'settings-logs.js')),
+    readPublicFile(path.join('admin-console', 'js', 'events.js')),
+  ].join('\n');
 
   assert.match(html, /function setMessage\(type, text, options = \{\}\)/);
   assert.match(html, /if \(!options\.persist\)/);

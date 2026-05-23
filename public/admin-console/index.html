@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Cockpit</title>
+  <link rel="stylesheet" href="/admin-console/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="配置导航">
+      <div class="brand">
+        <h1 class="brand-title">AI Cockpit</h1>
+        <p class="brand-subtitle">账号、入口密钥和本地代理集中管理。</p>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-button active" type="button" data-section-target="accountsSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 16c4-1 7-4 8-8"/><path d="M12 8l4-4 4 4-4 4z"/><path d="M5 16l-1 4 4-1 9-9"/></svg></span>
+          <span>账号与密钥</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="addAccountSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span>新增接入</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="accessSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M15 7a4 4 0 1 0-7.2 2.4L3 14.2V18h3.8l4.8-4.8A4 4 0 0 0 15 7z"/><path d="M14 6l4 4"/></svg></span>
+          <span>访问控制</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="proxySection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><path d="M8 7v10M16 7v10"/></svg></span>
+          <span>代理入口</span>
+        </button>
+        <button class="nav-button" type="button" data-section-target="logsSection">
+          <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M6 5h12v14H6z"/><path d="M9 9h6M9 12h6M9 15h4"/></svg></span>
+          <span>运行日志</span>
+        </button>
+      </nav>
+
+    </aside>
+
+    <main class="main">
+      <div id="message" class="message" role="status" aria-live="polite"></div>
+
+      <section id="accountsSection" class="section active">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">账号与入口管理</h2>
+            <p class="page-note">统一管理 Token 账号、API Key 上游、访问密钥和本地代理入口。</p>
+          </div>
+          <div class="button-row">
+            <div class="account-layout-bar" aria-label="账号卡片布局">
+              <button class="account-layout-trigger" type="button" id="accountLayoutMenuButton" aria-haspopup="menu" aria-expanded="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+                <span id="accountLayoutCurrentLabel">每行 自动</span>
+                <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="account-layout-options" id="accountLayoutMenu" role="menu" aria-label="每行展示卡片数量" hidden>
+                <button class="account-layout-option active" type="button" data-account-grid-columns="auto" role="menuitemradio" aria-checked="true">自动</button>
+                <button class="account-layout-option" type="button" data-account-grid-columns="2" role="menuitemradio" aria-checked="false">2 列</button>
+                <button class="account-layout-option" type="button" data-account-grid-columns="3" role="menuitemradio" aria-checked="false">3 列</button>
+                <button class="account-layout-option" type="button" data-account-grid-columns="4" role="menuitemradio" aria-checked="false">4 列</button>
+                <button class="account-layout-option" type="button" data-account-grid-columns="5" role="menuitemradio" aria-checked="false">5 列</button>
+              </div>
+            </div>
+            <button class="command quota-overview-trigger" type="button" id="quotaOverviewButton" aria-label="查看 Token 额度总览">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19h18"/><path d="M5 15l4-4 4 3 6-8"/><path d="M17 6h2v2"/></svg>
+              <span>额度总览</span>
+            </button>
+          </div>
+        </div>
+
+        <section class="routing-rules" aria-label="自动切换规则">
+          <div class="routing-preference-row">
+            <div class="rules-heading">使用偏好</div>
+            <ul class="rule-list">
+              <li>
+                <strong class="routing-preference-current" id="routingPreferenceCurrent">Token 优先</strong>
+                <button class="icon-button routing-preference-edit" type="button" id="editRoutingPreferenceButton" aria-label="编辑使用偏好">
+                  <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
+                </button>
+              </li>
+              <li class="codex-speed-mode-item">
+                <span class="codex-speed-label">Codex 速度模式</span>
+                <span class="codex-speed-toggle" role="group" aria-label="Codex 速度模式">
+                  <button class="codex-speed-option active" type="button" data-codex-speed-mode="standard" aria-pressed="true" title="Codex 官方 Standard 模式，不启用 Fast 服务层">标准</button>
+                  <button class="codex-speed-option" type="button" data-codex-speed-mode="fast" aria-pressed="false" title="Codex 官方 Fast 服务层，不修改推理强度">Fast</button>
+                </span>
+              </li>
+            </ul>
+          </div>
+          <div class="routing-rules-top">
+            <div class="rules-heading">自动切换</div>
+            <ul class="rule-list">
+              <li><strong>顺序</strong>：按使用偏好选择；当前同模式可用账号保持，不可用时选 5 小时配额更高的 Token。</li>
+              <li><strong>兜底</strong>：优先模式没有可用账号时，才切到另一种模式。</li>
+              <li><strong>触发</strong>：请求、额度轮询、手动刷新或上游额度/凭证错误后校正。</li>
+              <li><strong>不可用</strong>：5小时 &lt; 3%、周配额 ≤ 1%、额度用尽或凭证失效。</li>
+            </ul>
+          </div>
+        </section>
+
+        <section id="accountsGrid" class="accounts-grid" aria-live="polite"></section>
+      </section>
+
+      <section id="addAccountSection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">新增 Codex 账号配置</h2>
+            <p class="page-note">Token 模式用于 Codex 登录态账号；API Key 模式用于兼容上游和 Claude Messages。</p>
+          </div>
+          <div class="button-row">
+            <button class="command" type="button" data-open-external="https://chatgpt.com/">打开 ChatGPT</button>
+            <button class="command" type="button" data-open-external="https://chatgpt.com/api/auth/session">打开 AuthSession</button>
+          </div>
+        </div>
+
+        <section class="panel">
+          <h3 class="panel-title" id="addConfigModeTitle">Token 模式</h3>
+          <div class="mode-switch" role="radiogroup" aria-label="配置模式">
+            <button class="mode-option active" type="button" data-config-mode="token" aria-pressed="true">
+              <span class="mode-dot" aria-hidden="true"></span>
+              <span>
+                <span class="mode-name">Token 模式</span>
+                <span class="mode-note">粘贴 ChatGPT AuthSession JSON，适合 Codex 登录态账号。</span>
+              </span>
+            </button>
+            <button class="mode-option" type="button" data-config-mode="apikey" aria-pressed="false">
+              <span class="mode-dot" aria-hidden="true"></span>
+              <span>
+                <span class="mode-name">API Key 模式</span>
+                <span class="mode-note">填写 Base URL、API Key 和支持能力。</span>
+              </span>
+            </button>
+          </div>
+
+          <div id="tokenConfigPanel" class="config-panel">
+            <div class="form-grid single">
+              <div class="field">
+                <label class="field-label" for="rawJsonInput">AuthSession JSON</label>
+                <textarea id="rawJsonInput" spellcheck="false"></textarea>
+                <p class="field-hint">系统会自动提取 accessToken、refresh_token、account id 和邮箱备注。粘贴后不要退出该浏览器登录态。</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="apiKeyConfigPanel" class="config-panel" hidden>
+            <div class="form-grid">
+              <div class="field">
+                <label class="field-label" for="apiKeyBaseUrlInput">Base URL</label>
+                <input id="apiKeyBaseUrlInput" class="text-input" type="url" placeholder="https://api.example.com/v1">
+                <p class="field-hint">OpenAI 兼容接口通常填写到 `/v1`。</p>
+              </div>
+              <div class="field">
+                <label class="field-label" for="apiKeyInput">API Key</label>
+                <input id="apiKeyInput" class="text-input" type="password" autocomplete="off" placeholder="sk-...">
+                <p class="field-hint">会写入本地配置文件，仅用于转发到上游。</p>
+              </div>
+              <div class="field">
+                <label class="field-label" for="apiKeyDescriptionInput">备注</label>
+                <input id="apiKeyDescriptionInput" class="text-input" type="text" placeholder="例如：OpenAI 兼容备用上游">
+              </div>
+              <div class="field">
+                <span class="field-label">支持能力</span>
+                <div class="support-options">
+                  <label class="support-option">
+                    <input type="checkbox" name="apiKeySupport" value="gpt" checked>
+                    <span>GPT</span>
+                  </label>
+                  <label class="support-option">
+                    <input type="checkbox" name="apiKeySupport" value="claude">
+                    <span>Claude</span>
+                  </label>
+                </div>
+                <p class="field-hint">GPT 用于 OpenAI 兼容 `/v1/*`；Claude 用于原样转发 `/v1/messages`。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-grid single" style="margin-top: 18px;">
+            <div class="field">
+              <label class="field-label" for="usageStartInput">开始使用时间</label>
+              <input id="usageStartInput" class="text-input" type="datetime-local">
+              <p class="field-hint">默认当前时间，用于在账号卡片显示已使用天数。</p>
+            </div>
+          </div>
+
+          <div class="button-row" style="margin-top: 18px;">
+            <button class="command primary" type="button" id="addConfigButton">新增配置</button>
+            <button class="command" type="button" id="clearConfigButton">清空</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="accessSection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">访问控制</h2>
+            <p class="page-note">入口 apikey 保护本地代理入口；为空时，请求不会校验。</p>
+          </div>
+          <button class="command primary" type="button" id="addApiKeyButton">新增随机 apikey</button>
+        </div>
+
+        <section class="panel">
+          <h3 class="panel-title" id="apiKeyStatusTitle">入口 apikey</h3>
+          <div class="info-box">
+            <div>入口 apikey 保护 ai-cockpit 本地代理入口，不是 OpenAI、Codex 或 Claude 的上游 API Key，也不会转发给上游。</div>
+            <div>客户端请求 <code>/v1/*</code> 时，带上任意一个已配置的 key 即可；可以用 <code>Authorization: Bearer &lt;apikey&gt;</code>，也可以用 <code>x-api-key: &lt;apikey&gt;</code>。</div>
+            <div>配置多个 key 时，任意一个匹配都能访问，适合不同设备或临时授权共用；删除某个 key 只会影响使用它的客户端。列表为空则不校验。</div>
+          </div>
+          <div id="apiKeysList" class="key-list"></div>
+        </section>
+      </section>
+
+      <section id="proxySection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">代理入口</h2>
+            <p class="page-note">配置 ai-cockpit 对外服务端口，以及访问上游时借用的本机 VPN/代理软件端口。</p>
+          </div>
+        </div>
+
+        <section class="panel">
+          <h3 class="panel-title">端口配置</h3>
+          <div class="form-grid">
+            <div class="field">
+              <label class="field-label" for="servicePortInput">服务端口</label>
+              <input id="servicePortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="3009">
+              <p class="field-hint">ai-cockpit 在你本机监听的对外服务端口。Codex、OpenAI SDK 或其他客户端会连到这个端口，例如把 `http://localhost:3009/v1` 填到 Base URL。</p>
+            </div>
+            <div class="field">
+              <label class="field-label" for="proxyPortInput">代理端口</label>
+              <input id="proxyPortInput" class="text-input" type="number" min="1" max="65535" inputmode="numeric" placeholder="留空不用代理">
+              <p class="field-hint">这里填写你本地 VPN/代理软件正在监听的端口，例如 Clash、Surge、V2RayN 常见的 7890。填了以后，ai-cockpit 访问上游时会通过这个代理出网；留空则直连。</p>
+            </div>
+            <div class="field full">
+              <div class="endpoint-card">
+                <div class="endpoint-label">代理访问地址</div>
+                <code class="endpoint-value" id="proxyV1Url">http://localhost:3009/v1</code>
+                <div class="endpoint-meta" id="proxyEndpointMeta">把这个地址填到 Codex/OpenAI 客户端的 Base URL；Responses 接口为 http://localhost:3009/v1/responses。</div>
+              </div>
+            </div>
+          </div>
+          <div class="button-row" style="margin-top: 18px;">
+            <button class="command primary" type="button" id="saveProxySettingsButton">保存端口配置</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="logsSection" class="section">
+        <div class="section-head">
+          <div>
+            <h2 class="page-title">运行日志</h2>
+            <p class="page-note">查看最近写入的 openai.log，适合排查切换、请求和代理错误。</p>
+          </div>
+          <div class="button-row">
+            <button class="command primary" type="button" id="refreshLogsButton">刷新日志</button>
+          </div>
+        </div>
+
+        <section class="panel logs-panel">
+          <div class="logs-toolbar">
+            <div>
+              <div class="logs-title">最近日志</div>
+              <div class="logs-meta" id="logsMeta">点击“刷新日志”加载最近 160 行。</div>
+            </div>
+          </div>
+          <pre id="logsOutput" class="logs-output empty">点击“刷新日志”查看日志。</pre>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="quotaHistoryPopover" class="quota-history-popover" role="dialog" aria-live="polite" hidden></div>
+
+  <div id="quotaOverviewModalBackdrop" class="alias-modal-backdrop" hidden>
+    <div class="alias-modal quota-overview-modal" role="dialog" aria-modal="true" aria-labelledby="quotaOverviewModalTitle">
+      <div class="alias-modal-head">
+        <div>
+          <h3 class="alias-modal-title" id="quotaOverviewModalTitle">Token 额度总览</h3>
+          <p class="alias-modal-note">对比所有 Token 账号的 5 小时与周额度走势。</p>
+        </div>
+        <button class="icon-button" type="button" id="quotaOverviewModalCloseButton" aria-label="关闭额度总览">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div id="quotaOverviewModalBody" class="alias-modal-body"></div>
+    </div>
+  </div>
+
+  <div id="aliasModalBackdrop" class="alias-modal-backdrop" hidden>
+    <div class="alias-modal" role="dialog" aria-modal="true" aria-labelledby="aliasModalTitle">
+      <div class="alias-modal-head">
+        <div>
+          <h3 class="alias-modal-title" id="aliasModalTitle">编辑账号信息</h3>
+          <p class="alias-modal-note" id="aliasModalNote">给当前账号起一个更好认的名字。</p>
+        </div>
+        <button class="icon-button" type="button" id="aliasModalCloseButton" aria-label="关闭账号信息编辑">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div class="alias-modal-body">
+        <div class="field">
+          <label class="field-label" for="aliasInput">别名</label>
+          <input id="aliasInput" class="text-input" type="text" placeholder="例如：主账号 / 备用账号">
+        </div>
+        <div class="field">
+          <label class="field-label" for="accountPriceInput">金额（元）</label>
+          <input id="accountPriceInput" class="text-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="例如：20">
+        </div>
+        <div class="field">
+          <label class="field-label" for="accountStartedAtInput">开始使用时间</label>
+          <input id="accountStartedAtInput" class="text-input" type="datetime-local">
+        </div>
+        <div class="field">
+          <label class="field-label" id="aliasSourceLabel" for="aliasSourceValue">邮箱账号</label>
+          <div id="aliasSourceValue" class="field-readonly"></div>
+        </div>
+        <div class="field">
+          <label class="field-label" id="aliasIdLabel" for="aliasIdValue">账号 ID</label>
+          <div id="aliasIdValue" class="field-readonly"></div>
+        </div>
+      </div>
+      <div class="alias-modal-actions">
+        <button class="command" type="button" id="aliasModalCancelButton">取消</button>
+        <button class="command primary" type="button" id="aliasModalSaveButton">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="routingPreferenceModalBackdrop" class="alias-modal-backdrop" hidden>
+    <div class="alias-modal routing-preference-modal" role="dialog" aria-modal="true" aria-labelledby="routingPreferenceModalTitle">
+      <div class="alias-modal-head">
+        <div>
+          <h3 class="alias-modal-title" id="routingPreferenceModalTitle">编辑使用偏好</h3>
+          <p class="alias-modal-note" id="routingPreferenceModalNote">选择当前账号优先级；保存后会立即按新规则校正。</p>
+        </div>
+        <button class="icon-button" type="button" id="routingPreferenceModalCloseButton" aria-label="关闭使用偏好编辑">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div class="alias-modal-body">
+        <div class="mode-switch" role="radiogroup" aria-label="使用偏好">
+          <button class="mode-option" type="button" data-routing-preference="token_first" aria-pressed="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span>
+              <span class="mode-name">Token 优先</span>
+              <span class="mode-note">Token 可用时优先使用，Token 不可用时回退到 API Key。</span>
+            </span>
+          </button>
+          <button class="mode-option" type="button" data-routing-preference="apikey_first" aria-pressed="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span>
+              <span class="mode-name">API Key 优先</span>
+              <span class="mode-note">API Key 可用时优先使用，Token 作为兜底。</span>
+            </span>
+          </button>
+          <button class="mode-option" type="button" data-routing-preference="token_only" aria-pressed="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span>
+              <span class="mode-name">仅 Token</span>
+              <span class="mode-note">只允许 Token 账号参与自动切换。</span>
+            </span>
+          </button>
+          <button class="mode-option" type="button" data-routing-preference="apikey_only" aria-pressed="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span>
+              <span class="mode-name">仅 API Key</span>
+              <span class="mode-note">只允许 API Key 账号参与自动切换。</span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="alias-modal-actions">
+        <button class="command" type="button" id="routingPreferenceModalCancelButton">取消</button>
+        <button class="command primary" type="button" id="routingPreferenceModalSaveButton">保存偏好</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/vendor/echarts.min.js"></script>
+  <script src="/config-admin.js"></script>
+  <script src="/admin-console/js/bootstrap.js"></script>
+  <script src="/admin-console/js/account-format.js"></script>
+  <script src="/admin-console/js/quota-charts.js"></script>
+  <script src="/admin-console/js/account-cards.js"></script>
+  <script src="/admin-console/js/settings-logs.js"></script>
+  <script src="/admin-console/js/account-actions.js"></script>
+  <script src="/admin-console/js/events.js"></script>
+
+</body>
+</html>
