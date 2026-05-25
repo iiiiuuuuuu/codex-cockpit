@@ -19,11 +19,13 @@ const routingPreferenceMeta = {
 const codexSpeedModeMeta = {
   standard: {
     label: '标准',
+    note: '默认速度',
     message: 'Codex 速度模式已切换为标准。',
   },
   fast: {
-    label: 'Fast',
-    message: 'Codex 速度模式已切换为 Fast。',
+    label: '快速',
+    note: '1.5x speed, increased usage',
+    message: 'Codex 速度模式已切换为快速。',
   },
 };
 
@@ -50,6 +52,23 @@ function renderRoutingPreference(data) {
   setRoutingPreferenceDraft(preference);
 }
 
+function openCodexSpeedModeModal() {
+  setCodexSpeedModeDraft(getCodexSpeedModeValue(snapshot || {}));
+  codexSpeedModeModalBackdrop.hidden = false;
+  codexSpeedModeModalBackdrop.classList.add('show');
+  window.setTimeout(() => {
+    const activeButton = codexSpeedModeButtons.find(button => button.classList.contains('active'));
+    if (activeButton) {
+      activeButton.focus();
+    }
+  }, 0);
+}
+
+function closeCodexSpeedModeModal() {
+  codexSpeedModeModalBackdrop.classList.remove('show');
+  codexSpeedModeModalBackdrop.hidden = true;
+}
+
 function getCodexSpeedModeValue(data) {
   const mode = data?.responses && typeof data.responses.codex_speed_mode === 'string'
     ? data.responses.codex_speed_mode
@@ -57,14 +76,21 @@ function getCodexSpeedModeValue(data) {
   return codexSpeedModeMeta[mode] ? mode : 'standard';
 }
 
-function renderCodexSpeedMode(data) {
-  const mode = getCodexSpeedModeValue(data);
+function setCodexSpeedModeDraft(mode) {
+  codexSpeedModeDraft = codexSpeedModeMeta[mode] ? mode : 'standard';
   codexSpeedModeButtons.forEach(button => {
-    const active = button.dataset.codexSpeedMode === mode;
+    const active = button.dataset.codexSpeedMode === codexSpeedModeDraft;
     button.classList.toggle('active', active);
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
     button.disabled = codexSpeedModeSaving;
   });
+  codexSpeedModeModalNote.textContent = codexSpeedModeMeta[codexSpeedModeDraft].note;
+}
+
+function renderCodexSpeedMode(data) {
+  const mode = getCodexSpeedModeValue(data);
+  codexSpeedModeCurrent.textContent = codexSpeedModeMeta[mode].label;
+  setCodexSpeedModeDraft(mode);
 }
 
 function renderAll() {
@@ -152,6 +178,7 @@ function closeAliasModal() {
   aliasInput.value = '';
   accountPriceInput.value = '';
   accountStartedAtInput.value = '';
+  accountStoppedAtInput.value = '';
 }
 
 function closeRoutingPreferenceModal() {
@@ -188,6 +215,7 @@ function openAliasModal(index) {
   aliasInput.value = details.aliasValue;
   accountPriceInput.value = details.priceValue === '' ? '' : String(details.priceValue);
   accountStartedAtInput.value = details.startedAtValue;
+  accountStoppedAtInput.value = details.stoppedAtValue;
   aliasModalBackdrop.hidden = false;
   aliasModalBackdrop.classList.add('show');
   window.setTimeout(() => {
@@ -207,6 +235,7 @@ async function saveAlias() {
     return;
   }
   const rawStartedAt = accountStartedAtInput.value.trim();
+  const rawStoppedAt = accountStoppedAtInput.value.trim();
 
   aliasModalSaveButton.disabled = true;
   try {
@@ -216,6 +245,7 @@ async function saveAlias() {
         alias: aliasInput.value.trim(),
         price_yuan: rawPrice ? Number(rawPrice) : null,
         started_at: rawStartedAt || null,
+        stopped_at: rawStoppedAt || null,
       }),
     });
     renderAll();
@@ -421,25 +451,28 @@ async function saveRoutingPreference() {
 }
 
 async function saveCodexSpeedMode(mode) {
-  if (!codexSpeedModeMeta[mode] || mode === getCodexSpeedModeValue(snapshot || {}) || codexSpeedModeSaving) {
+  const nextMode = codexSpeedModeMeta[mode] ? mode : codexSpeedModeDraft;
+  if (!codexSpeedModeMeta[nextMode] || nextMode === getCodexSpeedModeValue(snapshot || {}) || codexSpeedModeSaving) {
+    closeCodexSpeedModeModal();
     return;
   }
 
   codexSpeedModeSaving = true;
-  renderCodexSpeedMode(snapshot || {});
+  setCodexSpeedModeDraft(nextMode);
   try {
     const result = await requestJson('/admin/api/settings', {
       method: 'POST',
       body: JSON.stringify({
         responses: {
-          codex_speed_mode: mode,
+          codex_speed_mode: nextMode,
         },
       }),
     });
 
     snapshot = result;
     renderAll();
-    setMessage('info', codexSpeedModeMeta[mode].message);
+    closeCodexSpeedModeModal();
+    setMessage('info', codexSpeedModeMeta[nextMode].message);
   } finally {
     codexSpeedModeSaving = false;
     renderCodexSpeedMode(snapshot || {});

@@ -232,6 +232,10 @@ function parseOpenAiConfigFile(raw) {
         if (config.started_at !== undefined && !isValidStartedAt(config.started_at)) {
             throw new Error('配置项 started_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 有效日期时间');
         }
+
+        if (config.stopped_at !== undefined && !isValidStartedAt(config.stopped_at)) {
+            throw new Error('配置项 stopped_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 有效日期时间');
+        }
     }
 
     if (parsed.apikeys !== undefined) {

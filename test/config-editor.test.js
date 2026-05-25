@@ -143,6 +143,18 @@ test('buildImportedConfigItem preserves token started_at with hour and minute', 
   assert.equal(imported.started_at, '2026-05-01T09:30');
 });
 
+test('buildImportedConfigItem preserves token stopped_at from auth session JSON', () => {
+  const imported = buildImportedConfigItem('token', {
+    account: {
+      id: 'account-from-session',
+    },
+    accessToken: 'access-token-from-session',
+    stopped_at: '2026-05-08T18:20',
+  });
+
+  assert.equal(imported.stopped_at, '2026-05-08T18:20');
+});
+
 test('buildImportedConfigItem supports direct credential JSON with email and JWT client_id', () => {
   const imported = buildImportedConfigItem('token', {
     access_token: createFakeJwt({
@@ -378,6 +390,43 @@ test('updateConfigItem rejects invalid started_at', () => {
   }, err => {
     assert.equal(err instanceof ConfigEditorError, true);
     assert.match(err.message, /started_at/);
+    return true;
+  });
+});
+
+test('updateConfigItem normalizes stopped_at and allows clearing it', () => {
+  const parsed = createTokenConfig();
+
+  const stopped = updateConfigItem(parsed, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    stopped_at: '2026-05-08T18:20',
+  });
+
+  assert.equal(stopped.configs[0].stopped_at, '2026-05-08T18:20:00');
+
+  const cleared = updateConfigItem(stopped, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    stopped_at: '',
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(cleared.configs[0], 'stopped_at'), false);
+});
+
+test('updateConfigItem rejects invalid stopped_at', () => {
+  assert.throws(() => {
+    updateConfigItem(createTokenConfig(), 0, {
+      access_token: 'token-1',
+      account_id: 'account-1',
+      description: 'primary',
+      stopped_at: '2026-02-31',
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /stopped_at/);
     return true;
   });
 });

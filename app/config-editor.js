@@ -152,11 +152,11 @@ function normalizePriceYuan(value) {
     return Number(price.toFixed(2));
 }
 
-function normalizeStartedAt(value) {
+function normalizeStartedAt(value, fieldName = 'started_at') {
     const normalized = normalizeString(value).replace(' ', 'T');
     const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
     if (!match) {
-        throw new ConfigEditorError('配置项 started_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 日期时间');
+        throw new ConfigEditorError(`配置项 ${fieldName} 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 日期时间`);
     }
 
     const [, yearText, monthText, dayText, hourText = '00', minuteText = '00', secondText = '00'] = match;
@@ -179,7 +179,7 @@ function normalizeStartedAt(value) {
         date.getUTCMinutes() !== minute ||
         date.getUTCSeconds() !== second
     ) {
-        throw new ConfigEditorError('配置项 started_at 必须是有效日期时间');
+        throw new ConfigEditorError(`配置项 ${fieldName} 必须是有效日期时间`);
     }
 
     return `${yearText}-${monthText}-${dayText}T${hourText}:${minuteText}:${secondText}`;
@@ -306,6 +306,14 @@ function normalizeConfigItem(item, existingItem = {}) {
         }
     }
 
+    if (Object.prototype.hasOwnProperty.call(item, 'stopped_at')) {
+        if (item.stopped_at === null || item.stopped_at === undefined || normalizeString(item.stopped_at) === '') {
+            delete nextItem.stopped_at;
+        } else {
+            nextItem.stopped_at = normalizeStartedAt(item.stopped_at, 'stopped_at');
+        }
+    }
+
     return nextItem;
 }
 
@@ -359,6 +367,10 @@ function buildImportedConfigItem(typeOrItem, maybeItem) {
 
     if (Object.prototype.hasOwnProperty.call(item, 'started_at')) {
         imported.started_at = item.started_at;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(item, 'stopped_at')) {
+        imported.stopped_at = item.stopped_at;
     }
 
     if (refreshToken) {

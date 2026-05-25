@@ -82,10 +82,10 @@
               </li>
               <li class="codex-speed-mode-item">
                 <span class="codex-speed-label">Codex 速度模式</span>
-                <span class="codex-speed-toggle" role="group" aria-label="Codex 速度模式">
-                  <button class="codex-speed-option active" type="button" data-codex-speed-mode="standard" aria-pressed="true" title="Codex 官方 Standard 模式，不启用 Fast 服务层">标准</button>
-                  <button class="codex-speed-option" type="button" data-codex-speed-mode="fast" aria-pressed="false" title="Codex 官方 Fast 服务层，不修改推理强度">Fast</button>
-                </span>
+                <strong class="codex-speed-current" id="codexSpeedModeCurrent">标准</strong>
+                <button class="icon-button routing-preference-edit" type="button" id="editCodexSpeedModeButton" aria-label="编辑 Codex 速度模式">
+                  <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
+                </button>
               </li>
             </ul>
           </div>
@@ -313,6 +313,10 @@
           <input id="accountStartedAtInput" class="text-input" type="datetime-local">
         </div>
         <div class="field">
+          <label class="field-label" for="accountStoppedAtInput">停止使用时间</label>
+          <input id="accountStoppedAtInput" class="text-input" type="datetime-local">
+        </div>
+        <div class="field">
           <label class="field-label" id="aliasSourceLabel" for="aliasSourceValue">邮箱账号</label>
           <div id="aliasSourceValue" class="field-readonly"></div>
         </div>
@@ -374,6 +378,42 @@
       <div class="alias-modal-actions">
         <button class="command" type="button" id="routingPreferenceModalCancelButton">取消</button>
         <button class="command primary" type="button" id="routingPreferenceModalSaveButton">保存偏好</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="codexSpeedModeModalBackdrop" class="alias-modal-backdrop" hidden>
+    <div class="alias-modal routing-preference-modal" role="dialog" aria-modal="true" aria-labelledby="codexSpeedModeModalTitle">
+      <div class="alias-modal-head">
+        <div>
+          <h3 class="alias-modal-title" id="codexSpeedModeModalTitle">编辑 Codex 速度模式</h3>
+          <p class="alias-modal-note" id="codexSpeedModeModalNote">标准模式使用默认速度；快速模式会启用 Fast 服务层。</p>
+        </div>
+        <button class="icon-button" type="button" id="codexSpeedModeModalCloseButton" aria-label="关闭 Codex 速度模式编辑">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div class="alias-modal-body">
+        <div class="mode-switch" role="radiogroup" aria-label="Codex 速度模式">
+          <button class="mode-option" type="button" data-codex-speed-mode="standard" aria-pressed="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span>
+              <span class="mode-name">标准</span>
+              <span class="mode-note">默认速度</span>
+            </span>
+          </button>
+          <button class="mode-option" type="button" data-codex-speed-mode="fast" aria-pressed="false">
+            <span class="mode-dot" aria-hidden="true"></span>
+            <span>
+              <span class="mode-name">快速</span>
+              <span class="mode-note">1.5x speed, increased usage</span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="alias-modal-actions">
+        <button class="command" type="button" id="codexSpeedModeModalCancelButton">取消</button>
+        <button class="command primary" type="button" id="codexSpeedModeModalSaveButton">保存速度</button>
       </div>
     </div>
   </div>

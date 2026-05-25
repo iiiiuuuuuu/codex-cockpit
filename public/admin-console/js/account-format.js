@@ -59,8 +59,35 @@ function getStartedAtInputValue(item) {
   return match ? `${match[1]}T${match[2]}:${match[3]}` : '';
 }
 
+function getStoppedAtValue(item) {
+  const configItem = item && item.item ? item.item : item;
+  const value = typeof configItem?.stopped_at === 'string' ? configItem.stopped_at.trim().replace(' ', 'T') : '';
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) {
+    return '';
+  }
+
+  const [, dateText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+  return `${dateText}T${hourText}:${minuteText}:${secondText}`;
+}
+
+function getStoppedAtInputValue(item) {
+  const value = getStoppedAtValue(item);
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/);
+  return match ? `${match[1]}T${match[2]}:${match[3]}` : '';
+}
+
 function formatStartedAtDisplay(item) {
   const value = getStartedAtValue(item);
+  if (!value) {
+    return '';
+  }
+
+  return value.replace('T', ' ');
+}
+
+function formatStoppedAtDisplay(item) {
+  const value = getStoppedAtValue(item);
   if (!value) {
     return '';
   }
@@ -106,7 +133,10 @@ function getUsageDays(item) {
     return null;
   }
 
-  const elapsedDays = (Date.now() - startTime) / (24 * 60 * 60 * 1000);
+  const stoppedAt = getStoppedAtValue(item);
+  const stopTime = stoppedAt ? getStartedAtTime(stoppedAt) : null;
+  const endTime = stopTime === null ? Date.now() : stopTime;
+  const elapsedDays = (endTime - startTime) / (24 * 60 * 60 * 1000);
   if (elapsedDays <= 0) {
     return 0;
   }
@@ -168,6 +198,7 @@ function getAliasModalDetails(item) {
       aliasValue: configItem.alias || configItem.description || '',
       priceValue: getAccountPriceYuan(item) || '',
       startedAtValue: getStartedAtInputValue(item),
+      stoppedAtValue: getStoppedAtInputValue(item),
     };
   }
 
@@ -180,6 +211,7 @@ function getAliasModalDetails(item) {
     aliasValue: configItem.alias || '',
     priceValue: getAccountPriceYuan(item) || '',
     startedAtValue: getStartedAtInputValue(item),
+    stoppedAtValue: getStoppedAtInputValue(item),
   };
 }
 

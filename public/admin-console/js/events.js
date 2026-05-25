@@ -63,6 +63,10 @@ editRoutingPreferenceButton.addEventListener('click', () => {
   openRoutingPreferenceModal();
 });
 
+editCodexSpeedModeButton.addEventListener('click', () => {
+  openCodexSpeedModeModal();
+});
+
 quotaOverviewButton.addEventListener('click', () => {
   openQuotaOverviewModal();
 });
@@ -74,12 +78,8 @@ routingPreferenceModalButtons.forEach(button => {
 });
 
 codexSpeedModeButtons.forEach(button => {
-  button.addEventListener('click', async () => {
-    try {
-      await saveCodexSpeedMode(button.dataset.codexSpeedMode);
-    } catch (error) {
-      setMessage('error', error.message);
-    }
+  button.addEventListener('click', () => {
+    setCodexSpeedModeDraft(button.dataset.codexSpeedMode);
   });
 });
 
@@ -106,6 +106,12 @@ routingPreferenceModalBackdrop.addEventListener('click', event => {
   }
 });
 
+codexSpeedModeModalBackdrop.addEventListener('click', event => {
+  if (event.target === codexSpeedModeModalBackdrop) {
+    closeCodexSpeedModeModal();
+  }
+});
+
 quotaOverviewModalBackdrop.addEventListener('click', event => {
   if (event.target === quotaOverviewModalBackdrop) {
     closeQuotaOverviewModal();
@@ -118,6 +124,8 @@ aliasModalSaveButton.addEventListener('click', saveAlias);
 quotaOverviewModalCloseButton.addEventListener('click', closeQuotaOverviewModal);
 routingPreferenceModalCloseButton.addEventListener('click', closeRoutingPreferenceModal);
 routingPreferenceModalCancelButton.addEventListener('click', closeRoutingPreferenceModal);
+codexSpeedModeModalCloseButton.addEventListener('click', closeCodexSpeedModeModal);
+codexSpeedModeModalCancelButton.addEventListener('click', closeCodexSpeedModeModal);
 routingPreferenceModalSaveButton.addEventListener('click', async () => {
   routingPreferenceModalSaveButton.disabled = true;
   try {
@@ -128,11 +136,22 @@ routingPreferenceModalSaveButton.addEventListener('click', async () => {
     routingPreferenceModalSaveButton.disabled = false;
   }
 });
+codexSpeedModeModalSaveButton.addEventListener('click', async () => {
+  codexSpeedModeModalSaveButton.disabled = true;
+  try {
+    await saveCodexSpeedMode(codexSpeedModeDraft);
+  } catch (error) {
+    setMessage('error', error.message);
+  } finally {
+    codexSpeedModeModalSaveButton.disabled = false;
+  }
+});
 
 window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && (!aliasModalBackdrop.hidden || !routingPreferenceModalBackdrop.hidden || !quotaOverviewModalBackdrop.hidden || !quotaHistoryPopover.hidden || !accountLayoutMenu.hidden)) {
+  if (event.key === 'Escape' && (!aliasModalBackdrop.hidden || !routingPreferenceModalBackdrop.hidden || !codexSpeedModeModalBackdrop.hidden || !quotaOverviewModalBackdrop.hidden || !quotaHistoryPopover.hidden || !accountLayoutMenu.hidden)) {
     closeAliasModal();
     closeRoutingPreferenceModal();
+    closeCodexSpeedModeModal();
     closeQuotaOverviewModal();
     closeQuotaHistoryPopover();
     closeAccountLayoutMenu();

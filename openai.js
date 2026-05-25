@@ -1834,6 +1834,10 @@ app.patch('/admin/api/configs/:index', async (req, res) => {
             nextItem.started_at = body.started_at;
         }
 
+        if (Object.prototype.hasOwnProperty.call(body, 'stopped_at')) {
+            nextItem.stopped_at = body.stopped_at;
+        }
+
         const hasAutoSwitchDisabled = Object.prototype.hasOwnProperty.call(body, 'auto_switch_disabled');
         if (hasAutoSwitchDisabled) {
             if (typeof body.auto_switch_disabled !== 'boolean') {

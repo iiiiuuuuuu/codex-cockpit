@@ -215,7 +215,11 @@ function renderAccountCard(item) {
   const healthText = getHealthText(item);
   const autoSwitchDisabled = isAutoSwitchDisabled(item);
   const startedAtDisplay = formatStartedAtDisplay(item);
+  const stoppedAtDisplay = formatStoppedAtDisplay(item);
   const usageText = startedAtDisplay ? formatUsageDays(item) : '';
+  const usageTitle = stoppedAtDisplay
+    ? `开始使用：${startedAtDisplay}；停止使用：${stoppedAtDisplay}`
+    : `开始使用：${startedAtDisplay}`;
   const statusBadgeText = getStatusBadgeText(item, availability, healthText);
   const cardClass = [
     'account-card',
@@ -255,7 +259,7 @@ function renderAccountCard(item) {
   const statusRow = `
       <div class="status-row">
         ${item.is_active ? '<span class="status-chip current">当前使用</span>' : ''}
-        ${usageText ? `<span class="status-chip usage" title="${escapeHtml(`开始使用：${startedAtDisplay}`)}">${escapeHtml(usageText)}</span>` : ''}
+        ${usageText ? `<span class="status-chip usage" title="${escapeHtml(usageTitle)}">${escapeHtml(usageText)}</span>` : ''}
         <span class="status-chip ${availability === 'unavailable' ? 'bad' : 'ok'}">${escapeHtml(statusBadgeText)}</span>
         ${autoSwitchDisabled ? '<span class="status-chip auto-disabled">不自动切入</span>' : ''}
       </div>`;
