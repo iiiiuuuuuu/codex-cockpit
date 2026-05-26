@@ -60,6 +60,15 @@ const aliasIdValue = document.getElementById('aliasIdValue');
 const aliasModalCloseButton = document.getElementById('aliasModalCloseButton');
 const aliasModalCancelButton = document.getElementById('aliasModalCancelButton');
 const aliasModalSaveButton = document.getElementById('aliasModalSaveButton');
+const deleteModalBackdrop = document.getElementById('deleteModalBackdrop');
+const deleteModalTitle = document.getElementById('deleteModalTitle');
+const deleteModalNote = document.getElementById('deleteModalNote');
+const deleteModalAccountName = document.getElementById('deleteModalAccountName');
+const deleteModalAccountMeta = document.getElementById('deleteModalAccountMeta');
+const deleteModalCloseButton = document.getElementById('deleteModalCloseButton');
+const deleteModalCancelButton = document.getElementById('deleteModalCancelButton');
+const deleteModalSoftButton = document.getElementById('deleteModalSoftButton');
+const deleteModalHardButton = document.getElementById('deleteModalHardButton');
 const adminAuthToken = new URLSearchParams(window.location.search).get('auth_token') || '';
 const {
   buildConfigSnapshotRequest,
@@ -76,6 +85,7 @@ const {
 let snapshot = null;
 let messageTimer = null;
 let editingAliasIndex = null;
+let deletingConfigIndex = null;
 let quotaHistoryPopoverIndex = null;
 let quotaHistoryPopoverMode = 'primary';
 let quotaHistoryPrimaryRange = '1h';

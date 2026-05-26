@@ -382,6 +382,44 @@
     </div>
   </div>
 
+  <div id="deleteModalBackdrop" class="alias-modal-backdrop" hidden>
+    <div class="alias-modal delete-modal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+      <div class="alias-modal-head">
+        <div>
+          <h3 class="alias-modal-title" id="deleteModalTitle">删除账号</h3>
+          <p class="alias-modal-note" id="deleteModalNote">选择删除方式。</p>
+        </div>
+        <button class="icon-button" type="button" id="deleteModalCloseButton" aria-label="关闭删除确认">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+        </button>
+      </div>
+      <div class="alias-modal-body delete-modal-body">
+        <div class="delete-account-summary">
+          <div class="delete-account-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6M14 11v6"/></svg>
+          </div>
+          <div>
+            <div class="delete-account-name" id="deleteModalAccountName">账号</div>
+            <div class="delete-account-meta" id="deleteModalAccountMeta"></div>
+          </div>
+        </div>
+        <div class="delete-choice-grid">
+          <button class="delete-choice soft" type="button" id="deleteModalSoftButton">
+            <span class="delete-choice-title">标记删除</span>
+            <span class="delete-choice-note">保留记录，立即停止使用</span>
+          </button>
+          <button class="delete-choice hard" type="button" id="deleteModalHardButton">
+            <span class="delete-choice-title">直接彻底删除</span>
+            <span class="delete-choice-note">从配置文件移除，不能在页面恢复</span>
+          </button>
+        </div>
+      </div>
+      <div class="alias-modal-actions">
+        <button class="command" type="button" id="deleteModalCancelButton">取消</button>
+      </div>
+    </div>
+  </div>
+
   <div id="codexSpeedModeModalBackdrop" class="alias-modal-backdrop" hidden>
     <div class="alias-modal routing-preference-modal" role="dialog" aria-modal="true" aria-labelledby="codexSpeedModeModalTitle">
       <div class="alias-modal-head">

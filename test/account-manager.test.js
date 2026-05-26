@@ -219,6 +219,41 @@ test('activateConfig switches the active config without changing availability', 
   assert.match(warnings[0], /账号切换: #1 account-1 -> #2 account-2 \(manual\)/);
 });
 
+test('activateConfig rejects soft-deleted configs', () => {
+  const configs = [
+    createConfig(0, { available: true, reason: 'ok' }),
+    createConfig(1, {
+      enabled: false,
+      available: false,
+      reason: 'deleted',
+    }, {
+      deleted: true,
+      deletedAt: '2026-05-08T18:20:00',
+    }),
+  ];
+  const { manager } = createManager(configs);
+
+  assert.throws(() => manager.activateConfig(1, 'manual'), /已标记删除/);
+  assert.equal(manager.getActiveConfig(), configs[0]);
+});
+
+test('getActiveConfig and ensureActiveConfig do not return a soft-deleted current config', () => {
+  const configs = [
+    createConfig(0, {
+      enabled: false,
+      available: false,
+      reason: 'deleted',
+    }, {
+      deleted: true,
+      deletedAt: '2026-05-08T18:20:00',
+    }),
+  ];
+  const { manager } = createManager(configs);
+
+  assert.equal(manager.getActiveConfig(), null);
+  assert.equal(manager.ensureActiveConfig('poll'), null);
+});
+
 test('ensureActiveConfig can switch away after a manual activation', () => {
   const configs = [
     createConfig(0, { available: true, reason: 'ok' }),

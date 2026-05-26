@@ -8,6 +8,7 @@ const {
   resolveResponsesOptions,
   resolveRoutingPreference,
   createRuntimeConfigs,
+  isConfigDeleted,
 } = require('../app/openai-config');
 
 function createBaseConfig(extra = {}) {
@@ -159,6 +160,28 @@ test('createRuntimeConfigs defaults config items to token type', () => {
   assert.equal(runtimeConfigs[0].baseUrl, 'https://chatgpt.com');
   assert.equal(runtimeConfigs[0].refresh_token, 'refresh-token');
   assert.equal(runtimeConfigs[0].autoSwitchDisabled, true);
+});
+
+test('createRuntimeConfigs marks deleted token configs as disabled', () => {
+  const parsed = parseOpenAiConfigFile(JSON.stringify({
+    configs: [
+      {
+        access_token: 'token',
+        account_id: 'account',
+        description: 'primary token',
+        deleted_at: '2026-05-08T18:20:00',
+      },
+    ],
+  }));
+
+  const runtimeConfigs = createRuntimeConfigs(parsed);
+
+  assert.equal(isConfigDeleted(parsed.configs[0]), true);
+  assert.equal(runtimeConfigs[0].deleted, true);
+  assert.equal(runtimeConfigs[0].deletedAt, '2026-05-08T18:20:00');
+  assert.equal(runtimeConfigs[0].runtime.enabled, false);
+  assert.equal(runtimeConfigs[0].runtime.available, false);
+  assert.equal(runtimeConfigs[0].runtime.reason, 'deleted');
 });
 
 test('createRuntimeConfigs supports item-level apikey configs', () => {

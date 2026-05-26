@@ -13,6 +13,11 @@ function isAutoSwitchDisabled(item) {
   return Boolean(configItem && configItem.auto_switch_disabled === true);
 }
 
+function isDeletedConfig(item) {
+  const configItem = item && item.item ? item.item : item;
+  return Boolean(configItem && typeof configItem.deleted_at === 'string' && configItem.deleted_at.trim());
+}
+
 function getAccountPriceYuan(item) {
   const configItem = item && item.item ? item.item : item;
   const price = Number(configItem?.price_yuan);
@@ -75,6 +80,27 @@ function getStoppedAtInputValue(item) {
   const value = getStoppedAtValue(item);
   const match = value.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/);
   return match ? `${match[1]}T${match[2]}:${match[3]}` : '';
+}
+
+function getDeletedAtValue(item) {
+  const configItem = item && item.item ? item.item : item;
+  const value = typeof configItem?.deleted_at === 'string' ? configItem.deleted_at.trim().replace(' ', 'T') : '';
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) {
+    return '';
+  }
+
+  const [, dateText, hourText = '00', minuteText = '00', secondText = '00'] = match;
+  return `${dateText}T${hourText}:${minuteText}:${secondText}`;
+}
+
+function formatDeletedAtDisplay(item) {
+  const value = getDeletedAtValue(item);
+  if (!value) {
+    return '';
+  }
+
+  return value.replace('T', ' ');
 }
 
 function formatStartedAtDisplay(item) {

@@ -1838,6 +1838,11 @@ app.patch('/admin/api/configs/:index', async (req, res) => {
             nextItem.stopped_at = body.stopped_at;
         }
 
+        const hasDeletedAt = Object.prototype.hasOwnProperty.call(body, 'deleted_at');
+        if (hasDeletedAt) {
+            nextItem.deleted_at = body.deleted_at;
+        }
+
         const hasAutoSwitchDisabled = Object.prototype.hasOwnProperty.call(body, 'auto_switch_disabled');
         if (hasAutoSwitchDisabled) {
             if (typeof body.auto_switch_disabled !== 'boolean') {
@@ -1848,7 +1853,7 @@ app.patch('/admin/api/configs/:index', async (req, res) => {
         }
 
         const nextParsed = updateConfigItem(parsed, targetIndex, nextItem);
-        if (hasAutoSwitchDisabled) {
+        if (hasAutoSwitchDisabled || hasDeletedAt) {
             await persistAndReloadConfig(nextParsed, 'admin_update_config', {
                 skipQuotaRefresh: true
             });

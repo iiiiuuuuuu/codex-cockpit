@@ -337,7 +337,7 @@ function startSnapshotPolling() {
   }
 
   snapshotPollTimer = window.setInterval(() => {
-    if (!aliasModalBackdrop.hidden) {
+    if (!aliasModalBackdrop.hidden || !deleteModalBackdrop.hidden) {
       return;
     }
 

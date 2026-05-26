@@ -70,6 +70,10 @@ function normalizeString(value) {
     return String(value).trim();
 }
 
+function isConfigDeleted(config) {
+    return typeof config?.deleted_at === 'string' && config.deleted_at.trim().length > 0;
+}
+
 function getConfigItemType(config) {
     const type = normalizeString(config && config.type);
     return type || 'token';
@@ -104,7 +108,7 @@ function normalizeApiKeySupport(value) {
 }
 
 function configSupportsCapability(config, capability) {
-    if (!config || config.type !== 'apikey') {
+    if (!config || config.type !== 'apikey' || config.deleted === true || isConfigDeleted(config)) {
         return false;
     }
 
@@ -236,6 +240,10 @@ function parseOpenAiConfigFile(raw) {
         if (config.stopped_at !== undefined && !isValidStartedAt(config.stopped_at)) {
             throw new Error('配置项 stopped_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 有效日期时间');
         }
+
+        if (config.deleted_at !== undefined && !isValidStartedAt(config.deleted_at)) {
+            throw new Error('配置项 deleted_at 必须是 YYYY-MM-DD、YYYY-MM-DDTHH:mm 或 YYYY-MM-DDTHH:mm:ss 有效日期时间');
+        }
     }
 
     if (parsed.apikeys !== undefined) {
@@ -362,11 +370,19 @@ function resolveRoutingPreference(parsed) {
 }
 
 function createTokenRuntimeConfig(config, index) {
-    const enabled = Boolean(config.access_token && config.account_id);
+    const deleted = isConfigDeleted(config);
+    const enabled = !deleted && Boolean(config.access_token && config.account_id);
+    const runtime = createDefaultTokenRuntime(enabled);
+    if (deleted) {
+        runtime.available = false;
+        runtime.reason = 'deleted';
+    }
 
     return {
         type: 'token',
         index,
+        deleted,
+        deletedAt: deleted ? config.deleted_at : '',
         autoSwitchDisabled: config.auto_switch_disabled === true,
         baseUrl: CHATGPT_BASE_URL,
         apiBasePath: CODEX_API_BASE_PATH,
@@ -376,11 +392,12 @@ function createTokenRuntimeConfig(config, index) {
         account_id: config.account_id || '',
         alias: config.alias || '',
         description: config.description || `OpenAI 配置 #${index + 1}`,
-        runtime: createDefaultTokenRuntime(enabled)
+        runtime
     };
 }
 
 function createApiKeyRuntimeConfig(config, index) {
+    const deleted = isConfigDeleted(config);
     const apikey = normalizeString(config && config.apikey);
     const baseUrl = normalizeString(config && config.base_url).replace(/\/+$/, '');
     const support = normalizeApiKeySupport(config.support);
@@ -397,6 +414,8 @@ function createApiKeyRuntimeConfig(config, index) {
     return {
         type: 'apikey',
         index,
+        deleted,
+        deletedAt: deleted ? config.deleted_at : '',
         autoSwitchDisabled: config.auto_switch_disabled === true,
         baseUrl,
         apiBasePath: '',
@@ -406,7 +425,14 @@ function createApiKeyRuntimeConfig(config, index) {
         probeModels,
         alias: config.alias || '',
         description: config.description || `APIKey 配置 #${index + 1}`,
-        runtime: createDefaultApiKeyRuntime()
+        runtime: deleted
+            ? {
+                ...createDefaultApiKeyRuntime(),
+                enabled: false,
+                available: false,
+                reason: 'deleted',
+            }
+            : createDefaultApiKeyRuntime()
     };
 }
 
@@ -459,6 +485,7 @@ module.exports = {
     normalizeApiKeySupport,
     normalizeRoutingPreference,
     normalizeCodexSpeedMode,
+    isConfigDeleted,
     configSupportsCapability,
     buildAuthHeadersForConfig,
     shouldUseQuotaMonitoring

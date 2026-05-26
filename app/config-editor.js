@@ -314,6 +314,14 @@ function normalizeConfigItem(item, existingItem = {}) {
         }
     }
 
+    if (Object.prototype.hasOwnProperty.call(item, 'deleted_at')) {
+        if (item.deleted_at === null || item.deleted_at === undefined || normalizeString(item.deleted_at) === '') {
+            delete nextItem.deleted_at;
+        } else {
+            nextItem.deleted_at = normalizeStartedAt(item.deleted_at, 'deleted_at');
+        }
+    }
+
     return nextItem;
 }
 
@@ -371,6 +379,10 @@ function buildImportedConfigItem(typeOrItem, maybeItem) {
 
     if (Object.prototype.hasOwnProperty.call(item, 'stopped_at')) {
         imported.stopped_at = item.stopped_at;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(item, 'deleted_at')) {
+        imported.deleted_at = item.deleted_at;
     }
 
     if (refreshToken) {

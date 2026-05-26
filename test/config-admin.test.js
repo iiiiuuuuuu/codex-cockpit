@@ -136,6 +136,10 @@ test('config admin console uses a stable admin configs entry while preserving th
   assert.match(html, /data-action="edit"/);
   assert.match(html, /data-action="activate"/);
   assert.match(html, /data-action="delete"/);
+  assert.match(html, /data-action="restore-delete"/);
+  assert.match(html, /id="deleteModalBackdrop"/);
+  assert.match(html, /id="deleteModalSoftButton"/);
+  assert.match(html, /id="deleteModalHardButton"/);
   assert.match(html, /data-action="refresh"/);
   assert.match(html, /data-action="toggle-auto-switch"/);
   assert.match(html, /sort_order/);

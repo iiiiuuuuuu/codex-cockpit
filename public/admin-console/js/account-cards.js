@@ -15,6 +15,9 @@ function formatLastChecked(runtime) {
 }
 
 function getAvailability(item) {
+  if (isDeletedConfig(item)) {
+    return 'unavailable';
+  }
   if (item.runtime && item.runtime.available === false) {
     return 'unavailable';
   }
@@ -113,6 +116,7 @@ function formatReasonText(reason) {
     responses_usage_not_included: 'Responses 套餐不支持',
     quota_check_failed: '额度检查失败',
     apikey_check_failed: 'API Key 检查失败',
+    deleted: '已标记删除',
   };
 
   if (typeof reason === 'string' && reason.startsWith('remaining_below_')) {
@@ -147,6 +151,10 @@ function formatSelectionReason(reason) {
 }
 
 function getHealthText(item) {
+  if (isDeletedConfig(item)) {
+    return '已标记删除';
+  }
+
   if (isApiKeyConfig(item)) {
     if (item.runtime?.available === false) {
       return formatReasonText(item.runtime?.reason);
@@ -163,6 +171,10 @@ function getHealthText(item) {
 }
 
 function getStatusBadgeText(item, availability, healthText) {
+  if (isDeletedConfig(item)) {
+    return '已删除';
+  }
+
   if (availability !== 'unavailable') {
     return '可用';
   }
@@ -214,6 +226,8 @@ function renderAccountCard(item) {
   const errorText = getRuntimeError(item.runtime, item);
   const healthText = getHealthText(item);
   const autoSwitchDisabled = isAutoSwitchDisabled(item);
+  const deleted = isDeletedConfig(item);
+  const deletedAtDisplay = formatDeletedAtDisplay(item);
   const startedAtDisplay = formatStartedAtDisplay(item);
   const stoppedAtDisplay = formatStoppedAtDisplay(item);
   const usageText = startedAtDisplay ? formatUsageDays(item) : '';
@@ -225,6 +239,7 @@ function renderAccountCard(item) {
     'account-card',
     item.is_active ? 'current' : '',
     availability === 'unavailable' ? 'unavailable' : '',
+    deleted ? 'deleted' : '',
   ].filter(Boolean).join(' ');
   const planClass = planLabel === 'TEAM' ? 'team' : 'plan';
   const quotaContent = isApiKeyConfig(item)
@@ -246,12 +261,17 @@ function renderAccountCard(item) {
       </div>
     `;
   const selectionReason = item.is_active ? formatSelectionReason(item.runtime?.last_selection_reason) : '';
-  const detailTitle = availability === 'unavailable'
+  const deletedReason = deletedAtDisplay ? `删除标记：${deletedAtDisplay}` : '删除标记已设置';
+  const detailTitle = deleted
+    ? deletedReason
+    : availability === 'unavailable'
     ? `不可用原因：${getUnavailableReasonText(item, healthText, errorText)}`
     : selectionReason
       ? `当前使用：${selectionReason}`
       : `状态：${healthText}`;
-  const detailLine = availability === 'unavailable'
+  const detailLine = deleted
+    ? `<div class="detail-line deleted" title="${escapeHtml(deletedReason)}">${escapeHtml(deletedReason)}</div>`
+    : availability === 'unavailable'
     ? `<div class="detail-line error" title="${escapeHtml(detailTitle)}">不可用原因：${escapeHtml(getUnavailableReasonText(item, healthText, errorText))}</div>`
     : selectionReason
       ? `<div class="detail-line" title="${escapeHtml(detailTitle)}">当前使用：${escapeHtml(selectionReason)}</div>`
@@ -261,6 +281,7 @@ function renderAccountCard(item) {
         ${item.is_active ? '<span class="status-chip current">当前使用</span>' : ''}
         ${usageText ? `<span class="status-chip usage" title="${escapeHtml(usageTitle)}">${escapeHtml(usageText)}</span>` : ''}
         <span class="status-chip ${availability === 'unavailable' ? 'bad' : 'ok'}">${escapeHtml(statusBadgeText)}</span>
+        ${deleted ? '<span class="status-chip deleted">已标记删除</span>' : ''}
         ${autoSwitchDisabled ? '<span class="status-chip auto-disabled">不自动切入</span>' : ''}
       </div>`;
   const footerInfo = `
@@ -269,6 +290,34 @@ function renderAccountCard(item) {
   `;
   const canDrag = !item.is_active;
   const dragTitle = canDrag ? '拖动调整展示顺序' : '当前使用固定置顶';
+  const deleteActionButton = `
+          <button class="card-action danger" type="button" data-action="delete" data-index="${item.index}" title="${deleted ? '彻底删除' : '删除'}" aria-label="${deleted ? '彻底删除' : '删除'}">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>`;
+  const accountActions = deleted
+    ? `
+          <button class="card-action restore" type="button" data-action="restore-delete" data-index="${item.index}" title="恢复" aria-label="恢复">
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/></svg>
+          </button>
+          ${deleteActionButton}
+    `
+    : `
+          <button class="card-action" type="button" data-action="activate" data-index="${item.index}" ${item.is_active ? 'disabled' : ''} title="${item.is_active ? '当前使用' : '切换'}" aria-label="${item.is_active ? '当前使用' : '切换'}">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="card-action" type="button" data-action="refresh" data-index="${item.index}" title="${isApiKeyConfig(item) ? '测试此 API Key 上游是否可用' : '只刷新此账号额度'}" aria-label="${isApiKeyConfig(item) ? '测试此 API Key 上游是否可用' : '只刷新此账号额度'}">
+            <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+          </button>
+          <button class="card-action ${autoSwitchDisabled ? 'auto-disabled' : ''}" type="button" data-action="toggle-auto-switch" data-index="${item.index}" data-auto-switch-disabled="${autoSwitchDisabled ? 'true' : 'false'}" title="${autoSwitchDisabled ? '允许自动切换到此账号' : '禁止自动切换到此账号'}" aria-label="${autoSwitchDisabled ? '允许自动切换到此账号' : '禁止自动切换到此账号'}">
+            ${autoSwitchDisabled
+              ? '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
+              : '<svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M8 8a7 7 0 0 0 8 8"/><path d="M16 8a7 7 0 0 0-8 8"/></svg>'}
+          </button>
+          <button class="card-action" type="button" data-action="edit" data-index="${item.index}" title="编辑别名" aria-label="编辑别名">
+            <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
+          </button>
+          ${deleteActionButton}
+    `;
 
   return `
     <article class="${cardClass}" data-account-card data-index="${item.index}" data-draggable-account="${canDrag ? 'true' : 'false'}" ${canDrag ? 'draggable="true"' : ''}>
@@ -293,23 +342,7 @@ function renderAccountCard(item) {
           ${footerInfo}
         </div>
         <div class="card-actions">
-          <button class="card-action" type="button" data-action="activate" data-index="${item.index}" ${item.is_active ? 'disabled' : ''} title="${item.is_active ? '当前使用' : '切换'}" aria-label="${item.is_active ? '当前使用' : '切换'}">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button class="card-action" type="button" data-action="refresh" data-index="${item.index}" title="${isApiKeyConfig(item) ? '测试此 API Key 上游是否可用' : '只刷新此账号额度'}" aria-label="${isApiKeyConfig(item) ? '测试此 API Key 上游是否可用' : '只刷新此账号额度'}">
-            <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
-          </button>
-          <button class="card-action ${autoSwitchDisabled ? 'auto-disabled' : ''}" type="button" data-action="toggle-auto-switch" data-index="${item.index}" data-auto-switch-disabled="${autoSwitchDisabled ? 'true' : 'false'}" title="${autoSwitchDisabled ? '允许自动切换到此账号' : '禁止自动切换到此账号'}" aria-label="${autoSwitchDisabled ? '允许自动切换到此账号' : '禁止自动切换到此账号'}">
-            ${autoSwitchDisabled
-              ? '<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
-              : '<svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M8 8a7 7 0 0 0 8 8"/><path d="M16 8a7 7 0 0 0-8 8"/></svg>'}
-          </button>
-          <button class="card-action" type="button" data-action="edit" data-index="${item.index}" title="编辑别名" aria-label="编辑别名">
-            <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 7l4 4"/></svg>
-          </button>
-          <button class="card-action danger" type="button" data-action="delete" data-index="${item.index}" title="删除" aria-label="删除">
-            <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/><path d="M10 11v6M14 11v6"/></svg>
-          </button>
+          ${accountActions}
         </div>
       </div>
     </article>

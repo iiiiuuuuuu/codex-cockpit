@@ -416,6 +416,28 @@ test('updateConfigItem normalizes stopped_at and allows clearing it', () => {
   assert.equal(Object.prototype.hasOwnProperty.call(cleared.configs[0], 'stopped_at'), false);
 });
 
+test('updateConfigItem normalizes deleted_at and allows clearing it', () => {
+  const parsed = createTokenConfig();
+
+  const deleted = updateConfigItem(parsed, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    deleted_at: '2026-05-08T18:20',
+  });
+
+  assert.equal(deleted.configs[0].deleted_at, '2026-05-08T18:20:00');
+
+  const restored = updateConfigItem(deleted, 0, {
+    access_token: 'token-1',
+    account_id: 'account-1',
+    description: 'primary',
+    deleted_at: null,
+  });
+
+  assert.equal(Object.prototype.hasOwnProperty.call(restored.configs[0], 'deleted_at'), false);
+});
+
 test('updateConfigItem rejects invalid stopped_at', () => {
   assert.throws(() => {
     updateConfigItem(createTokenConfig(), 0, {
@@ -427,6 +449,21 @@ test('updateConfigItem rejects invalid stopped_at', () => {
   }, err => {
     assert.equal(err instanceof ConfigEditorError, true);
     assert.match(err.message, /stopped_at/);
+    return true;
+  });
+});
+
+test('updateConfigItem rejects invalid deleted_at', () => {
+  assert.throws(() => {
+    updateConfigItem(createTokenConfig(), 0, {
+      access_token: 'token-1',
+      account_id: 'account-1',
+      description: 'primary',
+      deleted_at: '2026-02-31',
+    });
+  }, err => {
+    assert.equal(err instanceof ConfigEditorError, true);
+    assert.match(err.message, /deleted_at/);
     return true;
   });
 });

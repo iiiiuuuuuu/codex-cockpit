@@ -91,6 +91,7 @@ function createAccountManager(options) {
       [`secondary_remaining_not_above_${minWeeklyRemainingPercent}%`]: `周额度不高于 ${minWeeklyRemainingPercent}%`,
       quota_check_failed: '额度检查失败',
       apikey_check_failed: 'API Key 检查失败',
+      deleted: '已标记删除',
     };
 
     return reasonMap[reason] || reason || '未知';
@@ -459,6 +460,10 @@ function createAccountManager(options) {
     return Boolean(config) && config.autoSwitchDisabled !== true;
   }
 
+  function isDeletedConfig(config) {
+    return Boolean(config && config.deleted === true);
+  }
+
   function getConfigPriority(config) {
     if (routingPreference === 'apikey_first') {
       if (config && config.type === 'apikey') {
@@ -588,7 +593,7 @@ function createAccountManager(options) {
    */
   function getActiveConfig(predicate = () => true) {
     const currentConfig = configs[activeConfigIndex] || null;
-    return currentConfig && isEligibleConfig(currentConfig, predicate) ? currentConfig : null;
+    return currentConfig && !isDeletedConfig(currentConfig) && isEligibleConfig(currentConfig, predicate) ? currentConfig : null;
   }
 
   function activateConfig(index, reason = 'manual') {
@@ -598,6 +603,10 @@ function createAccountManager(options) {
 
     const previousConfig = configs[activeConfigIndex] || null;
     const nextConfig = configs[index];
+    if (nextConfig && nextConfig.deleted === true) {
+      throw new Error('已标记删除的账号不能切换使用');
+    }
+
     if (!isAllowedByRoutingPreference(nextConfig)) {
       throw new Error('当前使用偏好不允许切换到该账号模式');
     }
@@ -854,7 +863,7 @@ function createAccountManager(options) {
 
       return nextConfig;
     }
-    if (currentConfig && isEligibleConfig(currentConfig, predicate)) {
+    if (currentConfig && !isDeletedConfig(currentConfig) && isEligibleConfig(currentConfig, predicate)) {
       warn(`没有可用账号，继续使用当前账号 ${getAccountLabel(currentConfig)} (${reason})`);
       return currentConfig;
     }
@@ -874,7 +883,7 @@ function createAccountManager(options) {
 
     if (!config.runtime.enabled) {
       config.runtime.available = false;
-      config.runtime.reason = 'missing_credentials';
+      config.runtime.reason = config.deleted === true ? 'deleted' : 'missing_credentials';
       return config.runtime;
     }
 
@@ -970,6 +979,12 @@ function createAccountManager(options) {
     }
 
     const config = configs[index];
+    if (config.deleted === true) {
+      config.runtime.available = false;
+      config.runtime.reason = 'deleted';
+      return config;
+    }
+
     if (shouldUseQuotaMonitoring(config.type)) {
       await refreshSingleConfigWithLogging(config, reason);
       ensureActiveConfig(reason);

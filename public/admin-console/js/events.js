@@ -118,9 +118,17 @@ quotaOverviewModalBackdrop.addEventListener('click', event => {
   }
 });
 
+deleteModalBackdrop.addEventListener('click', event => {
+  if (event.target === deleteModalBackdrop) {
+    closeDeleteModal();
+  }
+});
+
 aliasModalCloseButton.addEventListener('click', closeAliasModal);
 aliasModalCancelButton.addEventListener('click', closeAliasModal);
 aliasModalSaveButton.addEventListener('click', saveAlias);
+deleteModalCloseButton.addEventListener('click', closeDeleteModal);
+deleteModalCancelButton.addEventListener('click', closeDeleteModal);
 quotaOverviewModalCloseButton.addEventListener('click', closeQuotaOverviewModal);
 routingPreferenceModalCloseButton.addEventListener('click', closeRoutingPreferenceModal);
 routingPreferenceModalCancelButton.addEventListener('click', closeRoutingPreferenceModal);
@@ -147,9 +155,44 @@ codexSpeedModeModalSaveButton.addEventListener('click', async () => {
   }
 });
 
+deleteModalSoftButton.addEventListener('click', async () => {
+  if (!Number.isInteger(deletingConfigIndex)) {
+    return;
+  }
+
+  setDeleteModalLoading(true);
+  try {
+    await markConfigDeleted(deletingConfigIndex);
+    closeDeleteModal();
+  } catch (error) {
+    setMessage('error', error.message);
+    setDeleteModalLoading(false);
+  }
+});
+
+deleteModalHardButton.addEventListener('click', async () => {
+  if (!Number.isInteger(deletingConfigIndex)) {
+    return;
+  }
+
+  setDeleteModalLoading(true);
+  try {
+    if (deleteModalBackdrop.dataset.deleteMode === 'restore') {
+      await restoreDeletedConfig(deletingConfigIndex);
+    } else {
+      await deleteConfig(deletingConfigIndex);
+    }
+    closeDeleteModal();
+  } catch (error) {
+    setMessage('error', error.message);
+    setDeleteModalLoading(false);
+  }
+});
+
 window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && (!aliasModalBackdrop.hidden || !routingPreferenceModalBackdrop.hidden || !codexSpeedModeModalBackdrop.hidden || !quotaOverviewModalBackdrop.hidden || !quotaHistoryPopover.hidden || !accountLayoutMenu.hidden)) {
+  if (event.key === 'Escape' && (!aliasModalBackdrop.hidden || !deleteModalBackdrop.hidden || !routingPreferenceModalBackdrop.hidden || !codexSpeedModeModalBackdrop.hidden || !quotaOverviewModalBackdrop.hidden || !quotaHistoryPopover.hidden || !accountLayoutMenu.hidden)) {
     closeAliasModal();
+    closeDeleteModal();
     closeRoutingPreferenceModal();
     closeCodexSpeedModeModal();
     closeQuotaOverviewModal();
@@ -294,11 +337,12 @@ accountsGrid.addEventListener('click', async event => {
       await toggleAutoSwitch(button.dataset.index, disabled);
       return;
     }
+    if (action === 'restore-delete') {
+      openRestoreDeleteModal(button.dataset.index);
+      return;
+    }
     if (action === 'delete') {
-      if (!confirmDeleteAction('确认删除这个配置项吗？')) {
-        return;
-      }
-      await deleteConfig(button.dataset.index);
+      openDeleteModal(button.dataset.index);
     }
   } catch (error) {
     setMessage('error', error.message);
